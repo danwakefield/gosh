@@ -67,6 +67,12 @@ func TestSparseArrayDelete(t *testing.T) {
 	if v != "" {
 		t.Errorf("Deleted element 2 but get returned a non empty result '%s'", v)
 	}
+
+	sa.Delete(4)
+	v = sa.Get(4)
+	if v != "" {
+		t.Errorf("Deleted element 4 but get returned a non empty result '%s'", v)
+	}
 }
 
 func TestSparseArraySort(t *testing.T) {

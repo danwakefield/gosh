@@ -3,6 +3,9 @@ package main
 import "sort"
 
 // XXX: Seperate out into a package? Adds stutter to types. Array.SparseArray
+// XXX: Consider using this as both array and map type. Base methods would
+// accept string keys, Array methods would wrap and call Itoa or similar wiht
+// error checking?
 
 type SparseArray struct {
 	elems map[int]string
@@ -50,18 +53,25 @@ func (sa *SparseArray) Get(key int) string {
 }
 
 func (sa *SparseArray) Delete(key int) {
-	delete(sa.elems, key)
+	_, found := sa.elems[key]
+	if found {
+		// delete is a noop by itself but we dont want to require O(n)
+		// when not even deleting something.
+		delete(sa.elems, key)
 
-	// remove the key from filledElems.
-	// because of the b slice uses the same memory
-	// as filledElems there is no need to allocate.
-	b := sa.filledElems[:0]
-	for _, e := range sa.filledElems {
-		if e != key {
+		// remove the key from filledElems.
+		// because of the b slice uses the same memory
+		// as filledElems there is no need to allocate.
+		b := sa.filledElems[:0]
+		for i, e := range sa.filledElems {
+			if e == key {
+				b = append(b, sa.filledElems[i+1:]...)
+				break
+			}
 			b = append(b, e)
 		}
+		sa.filledElems = b
 	}
-	sa.filledElems = b
 }
 
 // SliceFrom creates a new SparseArray containing all the elems after
