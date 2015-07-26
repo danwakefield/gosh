@@ -1,10 +1,26 @@
-package main
+package types
 
 import (
 	"reflect"
 	"strconv"
 	"testing"
 )
+
+func TestSparseArrayFromSlice(t *testing.T) {
+	a := []string{"a", "b", "c", "d"}
+	expectedElems := map[int]string{
+		0: "a",
+		1: "b",
+		2: "c",
+		3: "d",
+	}
+
+	sa := NewSparseArrayWithElems(a)
+
+	if !reflect.DeepEqual(expectedElems, sa.elems) {
+		t.Errorf("Creating new SparseArray with elems failed. expected %#v, got %#v", expectedElems, sa.elems)
+	}
+}
 
 func TestSparseArrayLen(t *testing.T) {
 	sa := NewSparseArray()

@@ -1,17 +1,16 @@
-package main
+package types
 
 import "sort"
 
-// XXX: Seperate out into a package? Adds stutter to types. Array.SparseArray
 // XXX: Consider using this as both array and map type. Base methods would
-// accept string keys, Array methods would wrap and call Itoa or similar wiht
+// accept string keys, Array methods would wrap and call Itoa or similar with
 // error checking?
 
 type SparseArray struct {
 	elems map[int]string
 	// XXX: Run benchmarks on memory / speed of using
 	// Filled instead of just Elems.
-	// As far a I can see it will only really be slicing that benifits
+	// As far a I can see it will only really be slicing that benefits
 	// and even then it will need to sort first.
 	filledElems []int
 
@@ -28,6 +27,25 @@ func NewSparseArray() SparseArray {
 	sa.filledElems = []int{}
 	return sa
 }
+
+func NewSparseArrayWithElems(slice []string) SparseArray {
+	sa := SparseArray{}
+	sa.elems = map[int]string{}
+	sa.filledElems = []int{}
+	for i, e := range slice {
+		sa.Put(i, e)
+	}
+	return sa
+}
+
+func (sa *SparseArray) sort() {
+	if !sa.sorted {
+		sort.Ints(sa.filledElems)
+		sa.sorted = true
+	}
+}
+
+func (sa SparseArray) String() string { return "" }
 
 func (sa SparseArray) Len() int {
 	return len(sa.filledElems)
@@ -75,13 +93,13 @@ func (sa *SparseArray) Delete(key int) {
 }
 
 // SliceFrom creates a new SparseArray containing all the elems after
-// index 'from'. The retrned SparseArray will be in a sorted state.
+// index 'from'. The returned SparseArray will be in a sorted state.
 func (sa *SparseArray) SliceFrom(from int) SparseArray {
 	sa.sort()
 
 	newSa := NewSparseArray()
 	// Since we are adding elements in order from a sorted array
-	// the new SpareseArray will also be sorted.
+	// the new SparseArray will also be sorted.
 	newSa.sorted = true
 	for _, e := range sa.filledElems {
 		if e >= from {
@@ -93,7 +111,7 @@ func (sa *SparseArray) SliceFrom(from int) SparseArray {
 
 // SliceFormLen create a new SparseArray containing elems starting at
 // index 'from' and ending at index 'from + length'.
-// The retrned SparseArray will be in a sorted state
+// The returned SparseArray will be in a sorted state
 func (sa *SparseArray) SliceFromLen(from, length int) SparseArray {
 	sa.sort()
 
@@ -109,7 +127,7 @@ func (sa *SparseArray) SliceFromLen(from, length int) SparseArray {
 
 // Shift removes the element at index 0 and moves all other
 // elements down 1 index.
-
+//
 // The variables in bash would be
 //   $1=1 $2=2 $3=3
 //   $@=(1 2 3)
@@ -121,6 +139,9 @@ func (sa *SparseArray) SliceFromLen(from, length int) SparseArray {
 // This is only used in argv for a scripts and functions.
 // because of this the array will only be empty or contain contiguous
 // elements.
+//
+// A shift with n > len(SparseArray) is a fast path, it assigns a new
+// empty map and slice.
 func (sa *SparseArray) Shift(n int) {
 	if n <= 0 || sa.Len() == 0 {
 		return
@@ -142,13 +163,4 @@ func (sa *SparseArray) Shift(n int) {
 	// Put clears the sorted state but since we sorted before the shifts
 	// the Array will still be sorted.
 	sa.sorted = true
-}
-
-func (sa SparseArray) String() string { return "" }
-
-func (sa *SparseArray) sort() {
-	if !sa.sorted {
-		sort.Ints(sa.filledElems)
-		sa.sorted = true
-	}
 }
