@@ -93,13 +93,16 @@ func TestArithLexer(t *testing.T) {
 		want ArithLexem
 	}{
 		{"_abcd", ArithLexem{T: ArithVariable, Val: "_abcd"}},
-		{"0", ArithLexem{T: ArithNumber, Val: int64(0)}},
 		{"5", ArithLexem{T: ArithNumber, Val: int64(5)}},
+		{"555", ArithLexem{T: ArithNumber, Val: int64(555)}},
+		{"555a", ArithLexem{T: ArithNumber, Val: int64(555)}},
+		{"0", ArithLexem{T: ArithNumber, Val: int64(0)}},
 		{"0xff", ArithLexem{T: ArithNumber, Val: int64(255)}},
-		{"0xfii", ArithLexem{T: ArithNumber, Val: int64(15)}},
+		{"0xfi", ArithLexem{T: ArithNumber, Val: int64(15)}},
 		{"077", ArithLexem{T: ArithNumber, Val: int64(63)}},
-		{"", ArithLexem{}},
-		{"   \n\t  ", ArithLexem{}},
+		{"0778", ArithLexem{T: ArithNumber, Val: int64(63)}},
+		{"", ArithLexem{T: ArithEOF}},
+		{"   \n\t  ", ArithLexem{T: ArithEOF}},
 		{">", ArithLexem{T: ArithGreaterThan}},
 		{">=", ArithLexem{T: ArithGreaterEqual}},
 		{">>", ArithLexem{T: ArithRightShift}},
@@ -152,13 +155,14 @@ func TestArithLexerComplex(t *testing.T) {
 		in   string
 		want []ArithLexem
 	}
-	// TC creates a new testcase
+	// TC creates a new testcase. Used because the ArithLexem slice
+	// doesnt work when using an anonymous struct.
 	TC := func(i string, lexems ...ArithLexem) complexTestCase {
 		ctc := complexTestCase{in: i}
 		ctc.want = []ArithLexem{}
 		ctc.want = append(ctc.want, lexems...)
 		// Append the EOF lexem
-		ctc.want = append(ctc.want, ArithLexem{})
+		ctc.want = append(ctc.want, ArithLexem{T: ArithEOF})
 		return ctc
 	}
 
@@ -170,12 +174,12 @@ func TestArithLexerComplex(t *testing.T) {
 			ArithLexem{T: ArithNumber, Val: int64(4)},
 		),
 		TC(
-			">>= <<= 0xff 077 5 ==",
+			">>= <<= 0xff 067 55 ==",
 			ArithLexem{T: ArithAssignRightShift},
 			ArithLexem{T: ArithAssignLeftShift},
 			ArithLexem{T: ArithNumber, Val: int64(255)},
-			ArithLexem{T: ArithNumber, Val: int64(63)},
-			ArithLexem{T: ArithNumber, Val: int64(5)},
+			ArithLexem{T: ArithNumber, Val: int64(55)},
+			ArithLexem{T: ArithNumber, Val: int64(55)},
 			ArithLexem{T: ArithEqual},
 		),
 	}
@@ -184,9 +188,8 @@ func TestArithLexerComplex(t *testing.T) {
 		y := NewArithLexer(c.in)
 		for lexemCount, lexem := range c.want {
 			got := y.Lex()
-			//fmt.Printf("%#v\n%#v\n", got.Val, c.want.Val)
 			if !reflect.DeepEqual(lexem, got) {
-				t.Errorf("'%s' should produce\n%#v\n as the %d lexem not\n%#v", c.in, lexem, lexemCount, got)
+				t.Errorf("'%s' should produce\n%#v\n as lexem %d not\n%#v", c.in, lexem, lexemCount, got)
 			}
 		}
 	}

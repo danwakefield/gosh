@@ -9,17 +9,21 @@ import (
 
 type ArithToken int
 
+// ArithLexem contains an ArithToken and a interface value.
+// If ArithLexem.T == ArithNumber then ArithLexem.Val will be an int64
+// If ArithLexem.T == ArithVariable then ArithLexem.Val will be a string
+//
+// In the future it may be possible that
+// If ArithLexem.T == ArithError then ArithLexem.Val will be an error
+//
+// In all other cases ArithLexem.T should be nil
 type ArithLexem struct {
 	T   ArithToken
 	Val interface{}
 }
 
 const (
-	// DigitRuneOffset can be subtracted from a rune from 0-9
-	// to get it as an integer value. Saves conversion to a string
-	// then a call to Atoi
-	DigitRuneOffset = 48
-	EOFRune         = -1
+	EOFRune = -1
 
 	ArithError ArithToken = iota
 	ArithAssignment
@@ -68,44 +72,26 @@ const (
 	ArithQuestionMark
 	ArithColon
 
-	// Used to turn an Arith token into its ArithAssign equivalent
-	// by adding to it
+	ArithEOF
+
+	// ArithAssignDiff is used to turn an Arith token into its ArithAssign
+	// equivalent by adding to it
 	ArithAssignDiff ArithToken = ArithAssignBinaryAnd - ArithBinaryAnd
 )
 
-var ArithPrecedence = map[ArithToken]int{
-	ArithMultiply:     0,
-	ArithDivide:       0,
-	ArithRemainder:    0,
-	ArithAdd:          1,
-	ArithSubtract:     1,
-	ArithLeftShift:    2,
-	ArithRightShift:   2,
-	ArithLessThan:     3,
-	ArithLessEqual:    3,
-	ArithGreaterThan:  3,
-	ArithGreaterEqual: 3,
-	ArithEqual:        4,
-	ArithNotEqual:     4,
-	ArithBinaryAnd:    5,
-	ArithBinaryXor:    6,
-	ArithBinaryOr:     7,
-}
-
+// IsArithBinaryOp checks if a token operates on two values.
+// E.g a + b, a << b
 func IsArithBinaryOp(a ArithToken) bool {
 	return a <= ArithDivide && a >= ArithLessEqual
 }
 
+// IsArithAssignmentOp checks if a token assigns to the lefthand variable.
+// E.g a += b, a <<= b
 func IsArithAssignmentOp(a ArithToken) bool {
 	return a <= ArithAssignDivide && a >= ArithAssignBinaryAnd
 }
 
-// Arith expects a string with all variable expansions performed
-// Hexadecimal and octal expansion is done here
-func Arith(s string) int64 {
-	return 0
-}
-
+// ArithLexer ...
 type ArithLexer struct {
 	input         string
 	pos           int
@@ -120,81 +106,141 @@ func NewArithLexer(s string) *ArithLexer {
 	}
 }
 
+// next returns the next available rune from the input string.
+// returns EOFRune
+func (al *ArithLexer) next() rune {
+	if al.pos >= al.inputLength {
+		al.lastRuneWidth = 0
+		return EOFRune
+	}
+	r, w := utf8.DecodeRuneInString(al.input[al.pos:])
+	al.lastRuneWidth = w
+	al.pos += w
+	return r
+}
+
+// backup undoes a call to next.
+// Only works once per invocation of call, multiple calls are idempotent
+func (al *ArithLexer) backup() {
+	al.pos -= al.lastRuneWidth
+	al.lastRuneWidth = 0
+}
+
+// hasNext checks that the next character of the input is one of the
+// characters in the string s
+func (al *ArithLexer) hasNext(s string) bool {
+	if strings.IndexRune(s, al.next()) >= 0 {
+		return true
+	}
+	al.backup()
+	return false
+}
+
+// hasNextFunc uses the supplied func to check the validity of the next
+// character from the input
+func (al *ArithLexer) hasNextFunc(f func(rune) bool) bool {
+	if f(al.next()) {
+		return true
+	}
+	al.backup()
+	return false
+}
+
+// Lex returns an ArithLexem containing the next ArithToken in the input string.
+// The ArithLexem will also contain a value dependant on the ArithToken
+// If ArithLexem.T == ArithNumber then ArithLexem.Val will be an int64
+// If ArithLexem.T == ArithVariable then ArithLexem.Val will be a string
+//
+// In the future it may be possible that
+// If ArithLexem.T == ArithError then ArithLexem.Val will be an error
 func (al *ArithLexer) Lex() ArithLexem {
 	var t ArithToken
 	var checkAssignmentOp bool
 	var startPos, endPos int
 
-	c := al.Next()
+	c := al.next()
 
-	// Ignore a run of whitespace
+	// Ignore whitespace
 	for {
 		if c == ' ' || c == '\n' || c == '\t' {
-			c = al.Next()
+			c = al.next()
 		} else {
 			break
 		}
 	}
 
 	if c == EOFRune {
-		return ArithLexem{}
+		return ArithLexem{T: ArithEOF}
 	}
 
 	// Special case for Hex (0xff) and Octal (0777) constants
 	if c == '0' {
-		if al.HasNext("Xx") {
+		// Hex constants
+		if al.hasNext("Xx") {
 			startPos = al.pos
 			endPos = startPos
 			for {
-				if al.HasNextFunc(IsHexDigit) {
+				//Find the end of the constant
+				if al.hasNextFunc(IsHexDigit) {
 					endPos++
 				} else {
-					// Handle the case of invalid hex
-					// e.g 0xfii should return an error
-					// I think any letter should, anything
-					// else could be valid
 					break
 				}
 			}
-			hexVal, err := strconv.ParseInt(al.input[startPos:endPos], 16, 64)
+			parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 16, 64)
 			if err != nil {
 				panic("Not Reached: Broken Hex Constant")
 			}
-			return ArithLexem{T: ArithNumber, Val: hexVal}
+			return ArithLexem{T: ArithNumber, Val: parsedVal}
 		}
-		if al.HasNextFunc(IsOctalDigit) {
+		// Octal constants
+		if al.hasNextFunc(IsOctalDigit) {
 			startPos = al.pos - al.lastRuneWidth
 			endPos = al.pos
 			for {
-				if al.HasNextFunc(IsOctalDigit) {
+				if al.hasNextFunc(IsOctalDigit) {
 					endPos++
 				} else {
-					// Handle invalid constants?
-					// e.g 0778
 					break
 				}
 			}
-			octVal, err := strconv.ParseInt(al.input[startPos:endPos], 8, 64)
+			parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 8, 64)
 			if err != nil {
 				panic("Not Reached: Broken Octal Constant")
 			}
-			return ArithLexem{T: ArithNumber, Val: octVal}
+			return ArithLexem{T: ArithNumber, Val: parsedVal}
 		}
+
+		// Nothing following the 0 means it just reprsents 0
 		return ArithLexem{T: ArithNumber, Val: int64(0)}
 	}
 
+	// Finds decimal constants.
 	if IsDigit(c) {
-		// Take whole number? just like the parsed constants?
-		return ArithLexem{T: ArithNumber, Val: int64(c - DigitRuneOffset)}
+		startPos = al.pos - al.lastRuneWidth
+		endPos = al.pos
+		for {
+			if al.hasNextFunc(IsDigit) {
+				endPos++
+			} else {
+				break
+			}
+		}
+		parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 10, 64)
+		if err != nil {
+			panic("Not Reached: Broken Decimal Constant")
+		}
+		return ArithLexem{T: ArithNumber, Val: parsedVal}
 	}
 
+	// Finds variable names.
 	if IsFirstInName(c) {
 		startPos = al.pos - al.lastRuneWidth
+		endPos = al.pos
 		for {
-			if IsInName(al.Next()) {
-				endPos = al.pos
+			if al.hasNextFunc(IsInName) {
+				endPos++
 			} else {
-				al.Backup()
 				break
 			}
 		}
@@ -203,7 +249,7 @@ func (al *ArithLexer) Lex() ArithLexem {
 
 	switch c {
 	case '>':
-		switch al.Next() {
+		switch al.next() {
 		case '>':
 			t = ArithRightShift
 			checkAssignmentOp = true
@@ -211,10 +257,10 @@ func (al *ArithLexer) Lex() ArithLexem {
 			t = ArithGreaterEqual
 		default:
 			t = ArithGreaterThan
-			al.Backup()
+			al.backup()
 		}
 	case '<':
-		switch al.Next() {
+		switch al.next() {
 		case '<':
 			t = ArithLeftShift
 			checkAssignmentOp = true
@@ -222,17 +268,17 @@ func (al *ArithLexer) Lex() ArithLexem {
 			t = ArithLessEqual
 		default:
 			t = ArithLessThan
-			al.Backup()
+			al.backup()
 		}
 	case '|':
-		if al.HasNext("|") {
+		if al.hasNext("|") {
 			t = ArithOr
 		} else {
 			t = ArithBinaryOr
 			checkAssignmentOp = true
 		}
 	case '&':
-		if al.HasNext("&") {
+		if al.hasNext("&") {
 			t = ArithAnd
 		} else {
 			t = ArithBinaryAnd
@@ -257,13 +303,13 @@ func (al *ArithLexer) Lex() ArithLexem {
 		t = ArithBinaryXor
 		checkAssignmentOp = true
 	case '!':
-		if al.HasNext("=") {
+		if al.hasNext("=") {
 			t = ArithNotEqual
 		} else {
 			t = ArithNot
 		}
 	case '=':
-		if al.HasNext("=") {
+		if al.hasNext("=") {
 			t = ArithEqual
 		} else {
 			t = ArithAssignment
@@ -283,42 +329,10 @@ func (al *ArithLexer) Lex() ArithLexem {
 	}
 
 	if checkAssignmentOp {
-		if al.HasNext("=") {
+		if al.hasNext("=") {
 			t += ArithAssignDiff
 		}
 	}
 
 	return ArithLexem{T: t}
-}
-
-func (al *ArithLexer) Next() rune {
-	if al.pos >= al.inputLength {
-		al.lastRuneWidth = 0
-		return EOFRune
-	}
-	r, w := utf8.DecodeRuneInString(al.input[al.pos:])
-	al.lastRuneWidth = w
-	al.pos += w
-	return r
-}
-
-func (al *ArithLexer) HasNext(s string) bool {
-	if strings.IndexRune(s, al.Next()) >= 0 {
-		return true
-	}
-	al.Backup()
-	return false
-}
-
-func (al *ArithLexer) HasNextFunc(f func(rune) bool) bool {
-	if f(al.Next()) {
-		return true
-	}
-	al.Backup()
-	return false
-}
-
-func (al *ArithLexer) Backup() {
-	al.pos -= al.lastRuneWidth
-	al.lastRuneWidth = 0
 }
