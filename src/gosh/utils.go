@@ -23,3 +23,7 @@ func IsFirstInName(r rune) bool {
 func IsHexDigit(r rune) bool {
 	return IsDigit(r) || (r <= 'f' && r >= 'a') || (r <= 'F' && r >= 'A')
 }
+
+func IsOctalDigit(r rune) bool {
+	return r <= '7' && r >= '0'
+}

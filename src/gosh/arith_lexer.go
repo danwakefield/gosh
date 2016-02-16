@@ -2,6 +2,7 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -122,6 +123,7 @@ func NewArithLexer(s string) *ArithLexer {
 func (al *ArithLexer) Lex() ArithLexem {
 	var t ArithToken
 	var checkAssignmentOp bool
+	var startPos, endPos int
 
 	c := al.Next()
 
@@ -138,20 +140,65 @@ func (al *ArithLexer) Lex() ArithLexem {
 		return ArithLexem{}
 	}
 
-	if IsDigit(c) {
-		if c == '0' {
-			if al.HasNext("Xx") {
-				hexStartPos := al.pos
-				hexEndPos := hexStartPos
-				_ = hexEndPos
+	// Special case for Hex (0xff) and Octal (0777) constants
+	if c == '0' {
+		if al.HasNext("Xx") {
+			startPos = al.pos
+			endPos = startPos
+			for {
+				if al.HasNextFunc(IsHexDigit) {
+					endPos++
+				} else {
+					// Handle the case of invalid hex
+					// e.g 0xfii should return an error
+					// I think any letter should, anything
+					// else could be valid
+					break
+				}
 			}
-			return ArithLexem{T: ArithNumber, Val: 0}
+			hexVal, err := strconv.ParseInt(al.input[startPos:endPos], 16, 64)
+			if err != nil {
+				panic("Not Reached: Broken Hex Constant")
+			}
+			return ArithLexem{T: ArithNumber, Val: hexVal}
 		}
-		return ArithLexem{T: ArithNumber, Val: c - DigitRuneOffset}
+		if al.HasNextFunc(IsOctalDigit) {
+			startPos = al.pos - al.lastRuneWidth
+			endPos = al.pos
+			for {
+				if al.HasNextFunc(IsOctalDigit) {
+					endPos++
+				} else {
+					// Handle invalid constants?
+					// e.g 0778
+					break
+				}
+			}
+			octVal, err := strconv.ParseInt(al.input[startPos:endPos], 8, 64)
+			if err != nil {
+				panic("Not Reached: Broken Octal Constant")
+			}
+			return ArithLexem{T: ArithNumber, Val: octVal}
+		}
+		return ArithLexem{T: ArithNumber, Val: int64(0)}
+	}
+
+	if IsDigit(c) {
+		// Take whole number? just like the parsed constants?
+		return ArithLexem{T: ArithNumber, Val: int64(c - DigitRuneOffset)}
 	}
 
 	if IsFirstInName(c) {
-		// Variable without a $, need to expand it
+		startPos = al.pos - al.lastRuneWidth
+		for {
+			if IsInName(al.Next()) {
+				endPos = al.pos
+			} else {
+				al.Backup()
+				break
+			}
+		}
+		return ArithLexem{T: ArithVariable, Val: al.input[startPos:endPos]}
 	}
 
 	switch c {
@@ -261,7 +308,14 @@ func (al *ArithLexer) HasNext(s string) bool {
 	}
 	al.Backup()
 	return false
+}
 
+func (al *ArithLexer) HasNextFunc(f func(rune) bool) bool {
+	if f(al.Next()) {
+		return true
+	}
+	al.Backup()
+	return false
 }
 
 func (al *ArithLexer) Backup() {
