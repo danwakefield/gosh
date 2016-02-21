@@ -95,12 +95,9 @@ func TestArithLexer(t *testing.T) {
 		{"_abcd", ArithLexem{T: ArithVariable, Val: "_abcd"}},
 		{"5", ArithLexem{T: ArithNumber, Val: int64(5)}},
 		{"555", ArithLexem{T: ArithNumber, Val: int64(555)}},
-		{"555a", ArithLexem{T: ArithNumber, Val: int64(555)}},
 		{"0", ArithLexem{T: ArithNumber, Val: int64(0)}},
 		{"0xff", ArithLexem{T: ArithNumber, Val: int64(255)}},
-		{"0xfi", ArithLexem{T: ArithNumber, Val: int64(15)}},
 		{"077", ArithLexem{T: ArithNumber, Val: int64(63)}},
-		{"0778", ArithLexem{T: ArithNumber, Val: int64(63)}},
 		{"", ArithLexem{T: ArithEOF}},
 		{"   \n\t  ", ArithLexem{T: ArithEOF}},
 		{">", ArithLexem{T: ArithGreaterThan}},
@@ -143,11 +140,39 @@ func TestArithLexer(t *testing.T) {
 	for _, c := range cases {
 		y := NewArithLexer(c.in)
 		got := y.Lex()
-		//fmt.Printf("%#v\n%#v\n", got.Val, c.want.Val)
 		if !reflect.DeepEqual(c.want, got) {
 			t.Errorf("'%s' should produce\n%#v\n not\n%#v", c.in, c.want, got)
 		}
 	}
+}
+
+func TestArithLexerErrors(t *testing.T) {
+	cases := []struct {
+		in   string
+		want ArithLexem
+	}{
+		{"555a", ArithLexem{
+			T:   ArithError,
+			Val: LexError{X: "555a", Err: ErrDecimalConstant},
+		}},
+		{"0xfi", ArithLexem{
+			T:   ArithError,
+			Val: LexError{X: "0xfi", Err: ErrHexConstant},
+		}},
+		{"0778", ArithLexem{
+			T:   ArithError,
+			Val: LexError{X: "0778", Err: ErrOctalConstant},
+		}},
+	}
+
+	for _, c := range cases {
+		y := NewArithLexer(c.in)
+		got := y.Lex()
+		if !reflect.DeepEqual(c.want, got) {
+			t.Errorf("'%s' should produce\n%#v\n not\n%#v", c.in, c.want, got)
+		}
+	}
+
 }
 
 func TestArithLexerComplex(t *testing.T) {

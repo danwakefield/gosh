@@ -2,10 +2,26 @@
 package main
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 )
+
+var (
+	ErrHexConstant     = errors.New("Invalid Hex Constant")
+	ErrOctalConstant   = errors.New("Invalid Octal Constant")
+	ErrDecimalConstant = errors.New("Invalid Decimal Constant")
+)
+
+type LexError struct {
+	X   string
+	Err error
+}
+
+func (le LexError) Error() string {
+	return "Error parsing '" + le.X + "' :" + le.Err.Error()
+}
 
 type ArithToken int
 
@@ -49,9 +65,9 @@ const (
 	ArithRightShift
 	ArithRemainder
 	ArithMultiply
-	ArithAdd
-	ArithSubtract
 	ArithDivide
+	ArithSubtract
+	ArithAdd
 
 	// These tokens perform assignment to a variable as well as an
 	// operation (E.g  x+=1)
@@ -62,9 +78,9 @@ const (
 	ArithAssignRightShift
 	ArithAssignRemainder
 	ArithAssignMultiply
-	ArithAssignAdd
-	ArithAssignSubtract
 	ArithAssignDivide
+	ArithAssignSubtract
+	ArithAssignAdd
 
 	ArithLeftParen
 	ArithRightParen
@@ -74,21 +90,20 @@ const (
 
 	ArithEOF
 
-	// ArithAssignDiff is used to turn an Arith token into its ArithAssign
-	// equivalent by adding to it
+	// ArithAssignDiff is used to turn an Arith token into its ArithAssign equivalent.
 	ArithAssignDiff ArithToken = ArithAssignBinaryAnd - ArithBinaryAnd
 )
 
 // IsArithBinaryOp checks if a token operates on two values.
 // E.g a + b, a << b
 func IsArithBinaryOp(a ArithToken) bool {
-	return a <= ArithDivide && a >= ArithLessEqual
+	return a <= ArithAdd && a >= ArithLessEqual
 }
 
 // IsArithAssignmentOp checks if a token assigns to the lefthand variable.
 // E.g a += b, a <<= b
 func IsArithAssignmentOp(a ArithToken) bool {
-	return a <= ArithAssignDivide && a >= ArithAssignBinaryAnd
+	return a <= ArithAssignAdd && a >= ArithAssignBinaryAnd
 }
 
 // ArithLexer ...
@@ -124,6 +139,16 @@ func (al *ArithLexer) next() rune {
 func (al *ArithLexer) backup() {
 	al.pos -= al.lastRuneWidth
 	al.lastRuneWidth = 0
+}
+
+// peek returns the next rune from the input
+// state of the lexer is preserved
+func (al *ArithLexer) peek() rune {
+	lrw := al.lastRuneWidth
+	r := al.next()
+	al.backup()
+	al.lastRuneWidth = lrw
+	return r
 }
 
 // hasNext checks that the next character of the input is one of the
@@ -184,6 +209,17 @@ func (al *ArithLexer) Lex() ArithLexem {
 				if al.hasNextFunc(IsHexDigit) {
 					endPos++
 				} else {
+					//Check if the number is invalid.
+					//We already know the next rune is not a hex digit
+					if IsInName(al.peek()) {
+						return ArithLexem{
+							T: ArithError,
+							Val: LexError{
+								X:   al.input[startPos-2 : endPos+1],
+								Err: ErrHexConstant,
+							},
+						}
+					}
 					break
 				}
 			}
@@ -201,6 +237,15 @@ func (al *ArithLexer) Lex() ArithLexem {
 				if al.hasNextFunc(IsOctalDigit) {
 					endPos++
 				} else {
+					if IsInName(al.peek()) {
+						return ArithLexem{
+							T: ArithError,
+							Val: LexError{
+								X:   al.input[startPos-1 : endPos+1],
+								Err: ErrOctalConstant,
+							},
+						}
+					}
 					break
 				}
 			}
@@ -223,6 +268,15 @@ func (al *ArithLexer) Lex() ArithLexem {
 			if al.hasNextFunc(IsDigit) {
 				endPos++
 			} else {
+				if IsFirstInName(al.peek()) {
+					return ArithLexem{
+						T: ArithError,
+						Val: LexError{
+							X:   al.input[startPos : endPos+1],
+							Err: ErrDecimalConstant,
+						},
+					}
+				}
 				break
 			}
 		}
