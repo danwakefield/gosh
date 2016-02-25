@@ -38,7 +38,10 @@ func TestArithParserBinops(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got := Parse(c.in)
+		got, err := Parse(c.in)
+		if err != nil {
+			t.Errorf("Parse returned an error: %s", err.Error())
+		}
 		if got != c.want {
 			t.Errorf("Parse(%s) should return %d not %d", c.in, c.want, got)
 		}
@@ -62,7 +65,10 @@ func TestArithPrefix(t *testing.T) {
 		{"(1+2)*3", 9},
 	}
 	for _, c := range cases {
-		got := Parse(c.in)
+		got, err := Parse(c.in)
+		if err != nil {
+			t.Errorf("Parse returned an error: %s", err.Error())
+		}
 		if got != c.want {
 			t.Errorf("Parse(%s) should return %d not %d", c.in, c.want, got)
 		}
@@ -79,7 +85,10 @@ func TestArithParserTernary(t *testing.T) {
 		{"0 ? 3 : 4", 4},
 	}
 	for _, c := range cases {
-		got := Parse(c.in)
+		got, err := Parse(c.in)
+		if err != nil {
+			t.Errorf("Parse returned an error: %s", err.Error())
+		}
 		if got != c.want {
 			t.Errorf("Parse(%s) should return %d not %d", c.in, c.want, got)
 		}
@@ -125,7 +134,10 @@ func TestArithParserAssignment(t *testing.T) {
 		for k, v := range c.inVars {
 			GlobalScope.Set(k, v)
 		}
-		got := Parse(c.inString)
+		got, err := Parse(c.inString)
+		if err != nil {
+			t.Errorf("Parse returned an error: %s", err.Error())
+		}
 		if got != c.want {
 			t.Errorf("Variable assignment '%s' should evaluate to '%d'", c.inString, c.want)
 		}

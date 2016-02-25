@@ -1,23 +1,27 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
+)
+
+var (
+	ErrUnexpectedToken = errors.New("")
 )
 
 // ArithNode is an implementation of the symbols described
 // in Top Down Operator Precedence; Vaughn Pratt; 1973
 type ArithNode interface {
-	Nud() int64
-	Led(int64) int64
-	Lbp() int
+	nud() int64
+	led(int64) int64
+	lbp() int
 }
 
-func Parse(s string) int64 {
+func Parse(s string) (int64, error) {
 	ap := &ArithParser{lexer: NewArithLexer(s)}
 	ap.next()
 	parser = ap
-	return parser.expression(0)
+	return parser.expression(0), nil
 }
 
 var parser *ArithParser
@@ -31,50 +35,50 @@ type ArithParser struct {
 func (ap *ArithParser) expression(rbp int) int64 {
 	n := ap.lastNode
 	ap.next()
-	left := n.Nud()
-	for rbp < ap.lastNode.Lbp() {
+	left := n.nud()
+	for rbp < ap.lastNode.lbp() {
 		n = ap.lastNode
 		ap.next()
-		left = n.Led(left)
+		left = n.led(left)
 	}
 	return left
 }
 
 func (ap *ArithParser) consume(t ArithToken) {
 	if t != ap.lastToken {
-		panic("consume Failed: Expected " + t.String())
+		panic("Expected '" + t.String() + "'")
 	}
 	ap.next()
 }
 
 func (ap *ArithParser) next() {
-	l := ap.lexer.Lex()
+	tok, val := ap.lexer.Lex()
 	switch {
-	case TokenIsBinaryOp(l.T):
-		ap.lastNode = InfixNode{T: l.T}
-	case TokenIsAssignmentOp(l.T) || TokenIs(l.T, ArithAssignment):
-		ap.lastNode = InfixAssignNode{T: l.T, V: ap.lastNode}
-	case TokenIs(l.T, ArithNumber):
-		ap.lastNode = LiteralNode{Val: l.Val.(int64)}
-	case TokenIs(l.T, ArithVariable):
-		ap.lastNode = VariableNode{Val: l.Val.(string)}
-	case TokenIs(l.T, ArithBinaryNot, ArithNot, ArithLeftParen):
-		ap.lastNode = PrefixNode{T: l.T}
-	case TokenIs(l.T, ArithAdd, ArithOr):
-		ap.lastNode = InfixRightNode{T: l.T}
-	case TokenIs(l.T, ArithEOF):
+	case TokenIsBinaryOp(tok):
+		ap.lastNode = InfixNode{T: tok}
+	case TokenIsAssignmentOp(tok) || TokenIs(tok, ArithAssignment):
+		ap.lastNode = InfixAssignNode{T: tok, V: ap.lastNode}
+	case TokenIs(tok, ArithAdd, ArithOr):
+		ap.lastNode = InfixRightNode{T: tok}
+	case TokenIs(tok, ArithNumber):
+		ap.lastNode = LiteralNode{Val: val.(int64)}
+	case TokenIs(tok, ArithVariable):
+		ap.lastNode = VariableNode{Val: val.(string)}
+	case TokenIs(tok, ArithBinaryNot, ArithNot, ArithLeftParen):
+		ap.lastNode = PrefixNode{T: tok}
+	case TokenIs(tok, ArithEOF):
 		ap.lastNode = EOFNode{}
-	case TokenIs(l.T, ArithQuestionMark):
+	case TokenIs(tok, ArithQuestionMark):
 		ap.lastNode = TernaryNode{}
-	case TokenIs(l.T, ArithRightParen, ArithColon):
-		ap.lastNode = NoopNode{T: l.T}
+	case TokenIs(tok, ArithRightParen, ArithColon):
+		ap.lastNode = NoopNode{T: tok}
 	default:
-		panic(fmt.Sprintf("%T - %#v\n%s - %T - %#v", l, l, l.T, l.T, l.T))
+		panic("Unknown token received from lexer")
 	}
-	ap.lastToken = l.T
+	ap.lastToken = tok
 }
 
-func (ap *ArithParser) GetVariable(name string) int64 {
+func (ap *ArithParser) getVariable(name string) int64 {
 	v := GlobalScope.Get(name)
 	if v.Val == "" {
 		return 0
@@ -86,7 +90,7 @@ func (ap *ArithParser) GetVariable(name string) int64 {
 	return i
 }
 
-func (ap *ArithParser) SetVariable(name string, val int64) {
+func (ap *ArithParser) setVariable(name string, val int64) {
 	GlobalScope.Set(name, strconv.FormatInt(val, 10))
 }
 
@@ -118,33 +122,33 @@ func TokenIs(toks ...ArithToken) bool {
 
 type EOFNode struct{}
 
-func (n EOFNode) Nud() int64      { panic("Nud called on EOFNode") }
-func (n EOFNode) Led(int64) int64 { panic("Led called on EOFNode") }
-func (n EOFNode) Lbp() int        { return -1 }
+func (n EOFNode) nud() int64      { panic("Nud called on EOFNode") }
+func (n EOFNode) led(int64) int64 { panic("Led called on EOFNode") }
+func (n EOFNode) lbp() int        { return -1 }
 
 type NoopNode struct {
 	T ArithToken
 }
 
-func (n NoopNode) Nud() int64      { panic("Nud called on NoopNode: " + n.T.String()) }
-func (n NoopNode) Led(int64) int64 { panic("Led called on NoopNode: " + n.T.String()) }
-func (n NoopNode) Lbp() int        { return 0 }
+func (n NoopNode) nud() int64      { panic("Nud called on NoopNode: " + n.T.String()) }
+func (n NoopNode) led(int64) int64 { panic("Led called on NoopNode: " + n.T.String()) }
+func (n NoopNode) lbp() int        { return 0 }
 
 type LiteralNode struct {
 	Val int64
 }
 
-func (n LiteralNode) Nud() int64      { return n.Val }
-func (n LiteralNode) Led(int64) int64 { panic("Led called on LiteralNode") }
-func (n LiteralNode) Lbp() int        { return 0 }
+func (n LiteralNode) nud() int64      { return n.Val }
+func (n LiteralNode) led(int64) int64 { panic("Led called on LiteralNode") }
+func (n LiteralNode) lbp() int        { return 0 }
 
 type VariableNode struct {
 	Val string
 }
 
-func (n VariableNode) Nud() int64      { return parser.GetVariable(n.Val) }
-func (n VariableNode) Led(int64) int64 { panic("Led called on VariableNode") }
-func (n VariableNode) Lbp() int        { return 0 }
+func (n VariableNode) nud() int64      { return parser.getVariable(n.Val) }
+func (n VariableNode) led(int64) int64 { panic("Led called on VariableNode") }
+func (n VariableNode) lbp() int        { return 0 }
 
 var (
 	InfixNudFunctions = map[ArithToken]func() int64{
@@ -215,8 +219,8 @@ type InfixAssignNode struct {
 	V ArithNode
 }
 
-func (n InfixAssignNode) Nud() int64 { panic("Nud called on InfixAssignNode: " + n.T.String()) }
-func (n InfixAssignNode) Led(left int64) int64 {
+func (n InfixAssignNode) nud() int64 { panic("Nud called on InfixAssignNode: " + n.T.String()) }
+func (n InfixAssignNode) led(left int64) int64 {
 	v, ok := n.V.(VariableNode)
 	var f func(int64, int64) int64
 	if !ok {
@@ -228,16 +232,16 @@ func (n InfixAssignNode) Led(left int64) int64 {
 	} else {
 		f, ok = InfixLedFunctions[n.T-ArithAssignDiff]
 		if !ok {
-			panic("Led called on InfixAssignNode: " + n.T.String())
+			panic("No Led function for InfixAssignNode: " + n.T.String())
 		}
 	}
 
 	right := parser.expression(0)
 	t := f(left, right)
-	parser.SetVariable(v.Val, t)
+	parser.setVariable(v.Val, t)
 	return t
 }
-func (n InfixAssignNode) Lbp() int {
+func (n InfixAssignNode) lbp() int {
 	if n.T == ArithAssignment {
 		return LbpValues[n.T]
 	}
@@ -248,60 +252,60 @@ type InfixNode struct {
 	T ArithToken
 }
 
-func (n InfixNode) Nud() int64 {
+func (n InfixNode) nud() int64 {
 	f, ok := InfixNudFunctions[n.T]
 	if !ok {
-		panic("Nud called on InfixNode: " + n.T.String())
+		panic("No Nud function for InfixNode: " + n.T.String())
 	}
 	return f()
 }
-func (n InfixNode) Led(left int64) int64 {
-	right := parser.expression(n.Lbp())
+func (n InfixNode) led(left int64) int64 {
+	right := parser.expression(n.lbp())
 	f, ok := InfixLedFunctions[n.T]
 	if !ok {
-		panic("Led called on InfixNode: " + n.T.String())
+		panic("No Led function for InfixNode: " + n.T.String())
 	}
 	return f(left, right)
 }
-func (n InfixNode) Lbp() int { return LbpValues[n.T] }
+func (n InfixNode) lbp() int { return LbpValues[n.T] }
 
 type InfixRightNode struct {
 	T ArithToken
 }
 
-func (n InfixRightNode) Nud() int64 { panic("Nud called on InfixRightNode: " + n.T.String()) }
-func (n InfixRightNode) Led(left int64) int64 {
-	right := parser.expression(n.Lbp() - 1)
+func (n InfixRightNode) nud() int64 { panic("Nud called on InfixRightNode: " + n.T.String()) }
+func (n InfixRightNode) led(left int64) int64 {
+	right := parser.expression(n.lbp() - 1)
 	f, ok := InfixRightLedFunctions[n.T]
 	if !ok {
-		panic("Led called on InfixRightNode: " + n.T.String())
+		panic("No Led function for InfixRightNode: " + n.T.String())
 	}
 	return f(left, right)
 }
-func (n InfixRightNode) Lbp() int { return LbpValues[n.T] }
+func (n InfixRightNode) lbp() int { return LbpValues[n.T] }
 
 type PrefixNode struct {
 	T ArithToken
 }
 
-func (n PrefixNode) Nud() int64 {
+func (n PrefixNode) nud() int64 {
 	f, ok := PrefixNudFunctions[n.T]
 	if !ok {
-		panic("Nud called on PrefixNode: " + string(n.T))
+		panic("No Nud function for PrefixNode: " + string(n.T))
 	}
 	return f()
 }
 
-func (n PrefixNode) Led(int64) int64 { panic("Led called on PrefixNode: " + n.T.String()) }
-func (n PrefixNode) Lbp() int        { return LbpValues[n.T] }
+func (n PrefixNode) led(int64) int64 { panic("Led called on PrefixNode: " + n.T.String()) }
+func (n PrefixNode) lbp() int        { return LbpValues[n.T] }
 
 type TernaryNode struct {
 	condition         int64
 	valTrue, valFalse int64
 }
 
-func (n TernaryNode) Nud() int64 { panic("Nud called on TernaryNode") }
-func (n TernaryNode) Led(left int64) int64 {
+func (n TernaryNode) nud() int64 { panic("Nud called on TernaryNode") }
+func (n TernaryNode) led(left int64) int64 {
 	// Somewhat confusingly the shell's ternary operator does not work using
 	// the shell's True/False semantics.
 	// The actual operation is Given (a ? b : c)
@@ -323,6 +327,6 @@ func (n TernaryNode) Led(left int64) int64 {
 	}
 	return n.valFalse
 }
-func (n TernaryNode) Lbp() int {
+func (n TernaryNode) lbp() int {
 	return 20
 }

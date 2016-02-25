@@ -25,19 +25,6 @@ func (le LexError) Error() string {
 
 type ArithToken int
 
-// ArithLexem contains an ArithToken and a interface value.
-// If ArithLexem.T == ArithNumber then ArithLexem.Val will be an int64
-// If ArithLexem.T == ArithVariable then ArithLexem.Val will be a string
-//
-// In the future it may be possible that
-// If ArithLexem.T == ArithError then ArithLexem.Val will be an error
-//
-// In all other cases ArithLexem.T should be nil
-type ArithLexem struct {
-	T   ArithToken
-	Val interface{}
-}
-
 const (
 	EOFRune = -1
 
@@ -159,14 +146,14 @@ func (al *ArithLexer) hasNextFunc(f func(rune) bool) bool {
 	return false
 }
 
-// Lex returns an ArithLexem containing the next ArithToken in the input string.
-// The ArithLexem will also contain a value dependant on the ArithToken
-// If ArithLexem.T == ArithNumber then ArithLexem.Val will be an int64
-// If ArithLexem.T == ArithVariable then ArithLexem.Val will be a string
+// Lex returns the next ArithToken in the input string and an interface value.
+// The interface will also contain a value dependant on the ArithToken
+// If ArithToken == ArithNumber then interface will be an int64
+// If ArithToken == ArithVariable then interface will be a string
 //
 // In the future it may be possible that
-// If ArithLexem.T == ArithError then ArithLexem.Val will be an error
-func (al *ArithLexer) Lex() ArithLexem {
+// If ArithToken == ArithError then interface will be an error
+func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 	var t ArithToken
 	var checkAssignmentOp bool
 	var startPos, endPos int
@@ -183,7 +170,7 @@ func (al *ArithLexer) Lex() ArithLexem {
 	}
 
 	if c == EOFRune {
-		return ArithLexem{T: ArithEOF}
+		return ArithEOF, nil
 	}
 
 	// Special case for Hex (0xff) and Octal (0777) constants
@@ -200,12 +187,9 @@ func (al *ArithLexer) Lex() ArithLexem {
 					//Check if the number is invalid.
 					//We already know the next rune is not a hex digit
 					if IsInName(al.peek()) {
-						return ArithLexem{
-							T: ArithError,
-							Val: LexError{
-								X:   al.input[startPos-2 : endPos+1],
-								Err: ErrHexConstant,
-							},
+						return ArithError, LexError{
+							X:   al.input[startPos-2 : endPos+1],
+							Err: ErrHexConstant,
 						}
 					}
 					break
@@ -215,7 +199,7 @@ func (al *ArithLexer) Lex() ArithLexem {
 			if err != nil {
 				panic("Not Reached: Broken Hex Constant")
 			}
-			return ArithLexem{T: ArithNumber, Val: parsedVal}
+			return ArithNumber, parsedVal
 		}
 		// Octal constants
 		if al.hasNextFunc(IsOctalDigit) {
@@ -226,12 +210,9 @@ func (al *ArithLexer) Lex() ArithLexem {
 					endPos++
 				} else {
 					if IsInName(al.peek()) {
-						return ArithLexem{
-							T: ArithError,
-							Val: LexError{
-								X:   al.input[startPos-1 : endPos+1],
-								Err: ErrOctalConstant,
-							},
+						return ArithError, LexError{
+							X:   al.input[startPos-1 : endPos+1],
+							Err: ErrOctalConstant,
 						}
 					}
 					break
@@ -241,11 +222,11 @@ func (al *ArithLexer) Lex() ArithLexem {
 			if err != nil {
 				panic("Not Reached: Broken Octal Constant")
 			}
-			return ArithLexem{T: ArithNumber, Val: parsedVal}
+			return ArithNumber, parsedVal
 		}
 
 		// Nothing following the 0 means it just reprsents 0
-		return ArithLexem{T: ArithNumber, Val: int64(0)}
+		return ArithNumber, int64(0)
 	}
 
 	// Finds decimal constants.
@@ -257,12 +238,9 @@ func (al *ArithLexer) Lex() ArithLexem {
 				endPos++
 			} else {
 				if IsFirstInName(al.peek()) {
-					return ArithLexem{
-						T: ArithError,
-						Val: LexError{
-							X:   al.input[startPos : endPos+1],
-							Err: ErrDecimalConstant,
-						},
+					return ArithError, LexError{
+						X:   al.input[startPos : endPos+1],
+						Err: ErrDecimalConstant,
 					}
 				}
 				break
@@ -272,7 +250,7 @@ func (al *ArithLexer) Lex() ArithLexem {
 		if err != nil {
 			panic("Not Reached: Broken Decimal Constant")
 		}
-		return ArithLexem{T: ArithNumber, Val: parsedVal}
+		return ArithNumber, parsedVal
 	}
 
 	// Finds variable names.
@@ -286,7 +264,7 @@ func (al *ArithLexer) Lex() ArithLexem {
 				break
 			}
 		}
-		return ArithLexem{T: ArithVariable, Val: al.input[startPos:endPos]}
+		return ArithVariable, al.input[startPos:endPos]
 	}
 
 	switch c {
@@ -376,5 +354,5 @@ func (al *ArithLexer) Lex() ArithLexem {
 		}
 	}
 
-	return ArithLexem{T: t}
+	return t, nil
 }

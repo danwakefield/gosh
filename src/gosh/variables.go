@@ -2,6 +2,7 @@ package main
 
 type Variable struct {
 	Val string
+	Set bool // Used to distinguish unset variables from variables with val=""
 }
 
 type VariableScope map[string]Variable
@@ -31,6 +32,8 @@ func (s *Scope) Pop() {
 	}
 }
 
+// Set walks down the scope stack checking for an existing variable to update.
+// If no variable of that name exists it is created in the root scope.
 func (s *Scope) Set(name, val string) {
 	for i := s.currentScope; i >= 0; i-- {
 		_, found := s.scopes[i][name]
@@ -41,9 +44,11 @@ func (s *Scope) Set(name, val string) {
 			return
 		}
 	}
-	s.scopes[0][name] = Variable{Val: val}
+	s.scopes[0][name] = Variable{Val: val, Set: true}
 }
 
+// Get walks down the scope stack and returns the variable if found.
+// If it is not set an empty variable is returned.
 func (s *Scope) Get(name string) Variable {
 	for i := s.currentScope; i >= 0; i-- {
 		val, found := s.scopes[i][name]
@@ -54,6 +59,7 @@ func (s *Scope) Get(name string) Variable {
 	return Variable{}
 }
 
+// Unset deletes
 func (s *Scope) Unset(name string) {
 	for i := s.currentScope; i >= 0; i-- {
 		_, found := s.scopes[i][name]

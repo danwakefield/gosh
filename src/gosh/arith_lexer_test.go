@@ -88,132 +88,139 @@ func TestArithTokenAssignDiff(t *testing.T) {
 
 func TestArithLexer(t *testing.T) {
 	cases := []struct {
-		in   string
-		want ArithLexem
+		in      string
+		wantTok ArithToken
+		wantVal interface{}
 	}{
-		{"_abcd", ArithLexem{T: ArithVariable, Val: "_abcd"}},
-		{"5", ArithLexem{T: ArithNumber, Val: int64(5)}},
-		{"555", ArithLexem{T: ArithNumber, Val: int64(555)}},
-		{"0", ArithLexem{T: ArithNumber, Val: int64(0)}},
-		{"0xff", ArithLexem{T: ArithNumber, Val: int64(255)}},
-		{"077", ArithLexem{T: ArithNumber, Val: int64(63)}},
-		{"", ArithLexem{T: ArithEOF}},
-		{"   \n\t  ", ArithLexem{T: ArithEOF}},
-		{">", ArithLexem{T: ArithGreaterThan}},
-		{">=", ArithLexem{T: ArithGreaterEqual}},
-		{">>", ArithLexem{T: ArithRightShift}},
-		{">>=", ArithLexem{T: ArithAssignRightShift}},
-		{"<", ArithLexem{T: ArithLessThan}},
-		{"<=", ArithLexem{T: ArithLessEqual}},
-		{"<<", ArithLexem{T: ArithLeftShift}},
-		{"<<=", ArithLexem{T: ArithAssignLeftShift}},
-		{"|", ArithLexem{T: ArithBinaryOr}},
-		{"|=", ArithLexem{T: ArithAssignBinaryOr}},
-		{"||", ArithLexem{T: ArithOr}},
-		{"&", ArithLexem{T: ArithBinaryAnd}},
-		{"&=", ArithLexem{T: ArithAssignBinaryAnd}},
-		{"&&", ArithLexem{T: ArithAnd}},
-		{"*", ArithLexem{T: ArithMultiply}},
-		{"*=", ArithLexem{T: ArithAssignMultiply}},
-		{"/", ArithLexem{T: ArithDivide}},
-		{"/=", ArithLexem{T: ArithAssignDivide}},
-		{"%", ArithLexem{T: ArithRemainder}},
-		{"%=", ArithLexem{T: ArithAssignRemainder}},
-		{"+", ArithLexem{T: ArithAdd}},
-		{"+=", ArithLexem{T: ArithAssignAdd}},
-		{"-", ArithLexem{T: ArithSubtract}},
-		{"-=", ArithLexem{T: ArithAssignSubtract}},
-		{"^", ArithLexem{T: ArithBinaryXor}},
-		{"^=", ArithLexem{T: ArithAssignBinaryXor}},
-		{"!", ArithLexem{T: ArithNot}},
-		{"!=", ArithLexem{T: ArithNotEqual}},
-		{"=", ArithLexem{T: ArithAssignment}},
-		{"==", ArithLexem{T: ArithEqual}},
-		{"(", ArithLexem{T: ArithLeftParen}},
-		{")", ArithLexem{T: ArithRightParen}},
-		{"~", ArithLexem{T: ArithBinaryNot}},
-		{"?", ArithLexem{T: ArithQuestionMark}},
-		{":", ArithLexem{T: ArithColon}},
+		{"_abcd", ArithVariable, "_abcd"},
+		{"5", ArithNumber, int64(5)},
+		{"555", ArithNumber, int64(555)},
+		{"0", ArithNumber, int64(0)},
+		{"0xff", ArithNumber, int64(255)},
+		{"077", ArithNumber, int64(63)},
+		{"", ArithEOF, nil},
+		{"   \n\t  ", ArithEOF, nil},
+		{">", ArithGreaterThan, nil},
+		{">=", ArithGreaterEqual, nil},
+		{">>", ArithRightShift, nil},
+		{">>=", ArithAssignRightShift, nil},
+		{"<", ArithLessThan, nil},
+		{"<=", ArithLessEqual, nil},
+		{"<<", ArithLeftShift, nil},
+		{"<<=", ArithAssignLeftShift, nil},
+		{"|", ArithBinaryOr, nil},
+		{"|=", ArithAssignBinaryOr, nil},
+		{"||", ArithOr, nil},
+		{"&", ArithBinaryAnd, nil},
+		{"&=", ArithAssignBinaryAnd, nil},
+		{"&&", ArithAnd, nil},
+		{"*", ArithMultiply, nil},
+		{"*=", ArithAssignMultiply, nil},
+		{"/", ArithDivide, nil},
+		{"/=", ArithAssignDivide, nil},
+		{"%", ArithRemainder, nil},
+		{"%=", ArithAssignRemainder, nil},
+		{"+", ArithAdd, nil},
+		{"+=", ArithAssignAdd, nil},
+		{"-", ArithSubtract, nil},
+		{"-=", ArithAssignSubtract, nil},
+		{"^", ArithBinaryXor, nil},
+		{"^=", ArithAssignBinaryXor, nil},
+		{"!", ArithNot, nil},
+		{"!=", ArithNotEqual, nil},
+		{"=", ArithAssignment, nil},
+		{"==", ArithEqual, nil},
+		{"(", ArithLeftParen, nil},
+		{")", ArithRightParen, nil},
+		{"~", ArithBinaryNot, nil},
+		{"?", ArithQuestionMark, nil},
+		{":", ArithColon, nil},
 	}
 
 	for _, c := range cases {
 		y := NewArithLexer(c.in)
-		got := y.Lex()
-		if !reflect.DeepEqual(c.want, got) {
-			t.Errorf("'%s' should produce\n%#v\n not\n%#v", c.in, c.want, got)
+		gotTok, gotVal := y.Lex()
+		if c.wantTok != gotTok {
+			t.Errorf("'%s' should produce the token \n%s\n not\n%s", c.in, c.wantTok, gotTok)
+		}
+		if !reflect.DeepEqual(c.wantVal, gotVal) {
+			t.Errorf("'%s' should produce the value \n%#v\n not\n%#v", c.in, c.wantVal, gotVal)
 		}
 	}
 }
 
 func TestArithLexerErrors(t *testing.T) {
 	cases := []struct {
-		in   string
-		want ArithLexem
+		in      string
+		wantTok ArithToken
+		wantVal interface{}
 	}{
-		{"555a", ArithLexem{
-			T:   ArithError,
-			Val: LexError{X: "555a", Err: ErrDecimalConstant},
-		}},
-		{"0xfi", ArithLexem{
-			T:   ArithError,
-			Val: LexError{X: "0xfi", Err: ErrHexConstant},
-		}},
-		{"0778", ArithLexem{
-			T:   ArithError,
-			Val: LexError{X: "0778", Err: ErrOctalConstant},
-		}},
+		{"555a", ArithError, LexError{X: "555a", Err: ErrDecimalConstant}},
+		{"0xfi", ArithError, LexError{X: "0xfi", Err: ErrHexConstant}},
+		{"0778", ArithError, LexError{X: "0778", Err: ErrOctalConstant}},
 	}
 
 	for _, c := range cases {
 		y := NewArithLexer(c.in)
-		got := y.Lex()
-		if !reflect.DeepEqual(c.want, got) {
-			t.Errorf("'%s' should produce\n%#v\n not\n%#v", c.in, c.want, got)
+		gotTok, gotVal := y.Lex()
+		if c.wantTok != gotTok {
+			t.Errorf("'%s' should produce the token \n%s\n not\n%s", c.in, c.wantTok, gotTok)
+		}
+
+		if !reflect.DeepEqual(c.wantVal, gotVal) {
+			t.Errorf("'%s' should produce\n%#v\n not\n%#v", c.in, c.wantVal, gotVal)
 		}
 	}
 
 }
 
 func TestArithLexerComplex(t *testing.T) {
+	type lexPair struct {
+		Tok ArithToken
+		Val interface{}
+	}
 	type complexTestCase struct {
 		in   string
-		want []ArithLexem
+		want []lexPair
 	}
-	// TC creates a new testcase. Used because the ArithLexem slice
-	// doesnt work when using an anonymous struct.
-	TC := func(i string, lexems ...ArithLexem) complexTestCase {
+
+	TC := func(i string, lexems ...lexPair) complexTestCase {
 		ctc := complexTestCase{in: i}
-		ctc.want = []ArithLexem{}
+		ctc.want = []lexPair{}
 		ctc.want = append(ctc.want, lexems...)
 		// Append the EOF lexem
-		ctc.want = append(ctc.want, ArithLexem{T: ArithEOF})
+		ctc.want = append(ctc.want, lexPair{Tok: ArithEOF})
 		return ctc
 	}
 
 	cases := []complexTestCase{
 		TC(
 			"5 >= 4",
-			ArithLexem{T: ArithNumber, Val: int64(5)},
-			ArithLexem{T: ArithGreaterEqual},
-			ArithLexem{T: ArithNumber, Val: int64(4)},
+			lexPair{Tok: ArithNumber, Val: int64(5)},
+			lexPair{Tok: ArithGreaterEqual},
+			lexPair{Tok: ArithNumber, Val: int64(4)},
 		),
 		TC(
 			">>= <<= 0xff 067 55 ==",
-			ArithLexem{T: ArithAssignRightShift},
-			ArithLexem{T: ArithAssignLeftShift},
-			ArithLexem{T: ArithNumber, Val: int64(255)},
-			ArithLexem{T: ArithNumber, Val: int64(55)},
-			ArithLexem{T: ArithNumber, Val: int64(55)},
-			ArithLexem{T: ArithEqual},
+			lexPair{Tok: ArithAssignRightShift},
+			lexPair{Tok: ArithAssignLeftShift},
+			lexPair{Tok: ArithNumber, Val: int64(255)},
+			lexPair{Tok: ArithNumber, Val: int64(55)},
+			lexPair{Tok: ArithNumber, Val: int64(55)},
+			lexPair{Tok: ArithEqual},
 		),
 	}
 
 	for _, c := range cases {
 		y := NewArithLexer(c.in)
-		for lexemCount, lexem := range c.want {
-			got := y.Lex()
-			if !reflect.DeepEqual(lexem, got) {
-				t.Errorf("'%s' should produce\n%#v\n as lexem %d not\n%#v", c.in, lexem, lexemCount, got)
+		for pairCount, want := range c.want {
+			gotTok, gotVal := y.Lex()
+			if want.Tok != gotTok {
+				t.Errorf("'%s' should produce the token \n%s\n as token #%d not\n%s", c.in, want.Tok, pairCount, gotTok)
+			}
+
+			if !reflect.DeepEqual(want.Val, gotVal) {
+				t.Errorf("'%s' should produce\n%#v\n as value #%d not\n%#v", c.in, want.Val, pairCount, gotVal)
 			}
 		}
 	}
