@@ -94,18 +94,6 @@ const (
 	ArithAssignDiff ArithToken = ArithAssignBinaryAnd - ArithBinaryAnd
 )
 
-// IsArithBinaryOp checks if a token operates on two values.
-// E.g a + b, a << b
-func IsArithBinaryOp(a ArithToken) bool {
-	return a <= ArithAdd && a >= ArithLessEqual
-}
-
-// IsArithAssignmentOp checks if a token assigns to the lefthand variable.
-// E.g a += b, a <<= b
-func IsArithAssignmentOp(a ArithToken) bool {
-	return a <= ArithAssignAdd && a >= ArithAssignBinaryAnd
-}
-
 // ArithLexer ...
 type ArithLexer struct {
 	input         string

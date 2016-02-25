@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestIsArithBinaryOperation(t *testing.T) {
+func TestTokenIsBinaryOp(t *testing.T) {
 	cases := []struct {
 		in   ArithToken
 		want bool
@@ -19,7 +19,7 @@ func TestIsArithBinaryOperation(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got := IsArithBinaryOp(c.in)
+		got := TokenIsBinaryOp(c.in)
 		if got != c.want {
 			t.Errorf(
 				"%s Should be %v not %v",
@@ -29,7 +29,7 @@ func TestIsArithBinaryOperation(t *testing.T) {
 	}
 }
 
-func TestIsArithAssignmentOperation(t *testing.T) {
+func TestTokenIsAssignmentOp(t *testing.T) {
 	cases := []struct {
 		in   ArithToken
 		want bool
@@ -42,7 +42,7 @@ func TestIsArithAssignmentOperation(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got := IsArithAssignmentOp(c.in)
+		got := TokenIsAssignmentOp(c.in)
 		if got != c.want {
 			t.Errorf("%s Should be %v not %v", c.in, c.want, got)
 		}
@@ -66,7 +66,6 @@ func TestArithTokenString(t *testing.T) {
 			t.Errorf("Token should stringify to %s not %s", c.want, got)
 		}
 	}
-
 }
 
 func TestArithTokenAssignDiff(t *testing.T) {
