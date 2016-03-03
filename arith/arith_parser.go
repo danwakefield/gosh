@@ -1,9 +1,11 @@
-package main
+package arith
 
 import (
 	"errors"
 	"runtime"
 	"strconv"
+
+	"github.com/danwakefield/gosh/variables"
 )
 
 var (
@@ -30,7 +32,7 @@ type ArithNode interface {
 	lbp() int
 }
 
-func ParseArith(s string) (i int64, err error) {
+func ParseArith(input string, scp *variables.Scope) (i int64, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if _, ok := r.(runtime.Error); ok {
@@ -44,7 +46,10 @@ func ParseArith(s string) (i int64, err error) {
 			}
 		}
 	}()
-	ap := &ArithParser{lexer: NewArithLexer(s)}
+	ap := &ArithParser{
+		lexer: NewArithLexer(input),
+		scope: scp,
+	}
 	ap.next()
 	parser = ap
 	return parser.expression(0), nil
@@ -106,7 +111,7 @@ func (ap *ArithParser) next() {
 }
 
 func (ap *ArithParser) getVariable(name string) int64 {
-	v := GlobalScope.Get(name)
+	v := ap.scope.Get(name)
 	// We dont care if the variable if unset or empty they both
 	// count as a zero
 	if v.Val == "" {
@@ -122,7 +127,7 @@ func (ap *ArithParser) getVariable(name string) int64 {
 }
 
 func (ap *ArithParser) setVariable(name string, val int64) {
-	GlobalScope.Set(name, strconv.FormatInt(val, 10))
+	ap.scope.Set(name, strconv.FormatInt(val, 10))
 }
 
 // IsArithBinaryOp checks if a token operates on two values.
@@ -355,6 +360,9 @@ func (n TernaryNode) led(left int64) int64 {
 	// E.g
 	// (0 ? x += 2 : x += 2)
 	// will make x = 4
+	// The replaced value will also be 4
+	// so for (1 + (0 ? x += 2 : x += 2))
+	// will be 5
 	// and
 	// (y ? x = 3 : x = 4)
 	// will make x = 4 regardless of the value of y

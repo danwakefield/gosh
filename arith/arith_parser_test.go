@@ -1,6 +1,12 @@
-package main
+package arith
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/danwakefield/gosh/variables"
+)
+
+var EmptyScope = variables.NewScope()
 
 func TestArithParserBinops(t *testing.T) {
 	type TestCase struct {
@@ -38,7 +44,7 @@ func TestArithParserBinops(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got, err := ParseArith(c.in)
+		got, err := ParseArith(c.in, EmptyScope)
 		if err != nil {
 			t.Errorf("Parse returned an error: %s", err.Error())
 		}
@@ -65,7 +71,7 @@ func TestArithPrefix(t *testing.T) {
 		{"(1+2)*3", 9},
 	}
 	for _, c := range cases {
-		got, err := ParseArith(c.in)
+		got, err := ParseArith(c.in, EmptyScope)
 		if err != nil {
 			t.Errorf("Parse returned an error: %s", err.Error())
 		}
@@ -85,7 +91,7 @@ func TestArithParserTernary(t *testing.T) {
 		{"0 ? 3 : 4", 4},
 	}
 	for _, c := range cases {
-		got, err := ParseArith(c.in)
+		got, err := ParseArith(c.in, EmptyScope)
 		if err != nil {
 			t.Errorf("Parse returned an error: %s", err.Error())
 		}
@@ -136,11 +142,11 @@ func TestArithParserAssignment(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		GlobalScope = NewScope()
+		scp := variables.NewScope()
 		for k, v := range c.inVars {
-			GlobalScope.Set(k, v)
+			scp.Set(k, v)
 		}
-		got, err := ParseArith(c.inString)
+		got, err := ParseArith(c.inString, scp)
 		if err != nil {
 			t.Errorf("Parse returned an error: %s", err.Error())
 		}
@@ -148,7 +154,7 @@ func TestArithParserAssignment(t *testing.T) {
 			t.Errorf("Variable assignment '%s' should evaluate to '%d'", c.inString, c.want)
 		}
 		for varName, wantVar := range c.wantVars {
-			gotVar := GlobalScope.Get(varName)
+			gotVar := scp.Get(varName)
 			if gotVar.Val != wantVar {
 				t.Errorf("Variable assignment should modify global scope. '%s' should be '%s' not '%s'", varName, wantVar, gotVar.Val)
 			}
@@ -157,7 +163,6 @@ func TestArithParserAssignment(t *testing.T) {
 }
 
 func TestParseError(t *testing.T) {
-	GlobalScope = NewScope()
 	cases := []struct {
 		in   string
 		want ParseError
@@ -166,7 +171,7 @@ func TestParseError(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		_, gotErr := ParseArith(c.in)
+		_, gotErr := ParseArith(c.in, EmptyScope)
 		if gotErr != c.want {
 			t.Errorf("Parse should return the error\n%s\nfor the input '%s' not\n%s", c.want, c.in, gotErr)
 		}

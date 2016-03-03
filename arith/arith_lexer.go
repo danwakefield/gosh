@@ -1,5 +1,5 @@
 //go:generate stringer -type=ArithToken
-package main
+package arith
 
 import (
 	"errors"
@@ -45,6 +45,7 @@ const (
 	ArithEqual
 	ArithNotEqual
 
+	// These binary operations also have assignment equivalents
 	ArithBinaryAnd
 	ArithBinaryOr
 	ArithBinaryXor
