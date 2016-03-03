@@ -30,7 +30,7 @@ type ArithNode interface {
 	lbp() int
 }
 
-func Parse(s string) (i int64, err error) {
+func ParseArith(s string) (i int64, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if _, ok := r.(runtime.Error); ok {
@@ -42,7 +42,6 @@ func Parse(s string) (i int64, err error) {
 			case error:
 				err = ParseError{Err: r.(error)}
 			}
-			return
 		}
 	}()
 	ap := &ArithParser{lexer: NewArithLexer(s)}
@@ -57,6 +56,7 @@ type ArithParser struct {
 	lastNode  ArithNode
 	lastToken ArithToken
 	lexer     *ArithLexer
+	scope     *variables.Scope
 }
 
 func (ap *ArithParser) expression(rbp int) int64 {
