@@ -2,12 +2,25 @@ package main
 
 import (
 	"errors"
+	"runtime"
 	"strconv"
 )
 
 var (
-	ErrUnexpectedToken = errors.New("")
+	ErrUnknownToken = errors.New("Unknown token returned by lex")
 )
+
+type ParseError struct {
+	Err      error
+	Fallback string
+}
+
+func (e ParseError) Error() string {
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return e.Fallback
+}
 
 // ArithNode is an implementation of the symbols described
 // in Top Down Operator Precedence; Vaughn Pratt; 1973
@@ -17,7 +30,21 @@ type ArithNode interface {
 	lbp() int
 }
 
-func Parse(s string) (int64, error) {
+func Parse(s string) (i int64, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if _, ok := r.(runtime.Error); ok {
+				panic(r)
+			}
+			switch r.(type) {
+			case string:
+				err = ParseError{Fallback: r.(string)}
+			case error:
+				err = ParseError{Err: r.(error)}
+			}
+			return
+		}
+	}()
 	ap := &ArithParser{lexer: NewArithLexer(s)}
 	ap.next()
 	parser = ap
@@ -73,16 +100,20 @@ func (ap *ArithParser) next() {
 	case TokenIs(tok, ArithRightParen, ArithColon):
 		ap.lastNode = NoopNode{T: tok}
 	default:
-		panic("Unknown token received from lexer")
+		panic(ErrUnknownToken)
 	}
 	ap.lastToken = tok
 }
 
 func (ap *ArithParser) getVariable(name string) int64 {
 	v := GlobalScope.Get(name)
+	// We dont care if the variable if unset or empty they both
+	// count as a zero
 	if v.Val == "" {
 		return 0
 	}
+	// ParseInt figures out the format of the variable if is in hex / octal
+	// format so we can just perform one conversion.
 	i, err := strconv.ParseInt(v.Val, 0, 64)
 	if err != nil {
 		panic("Variable '" + name + "' cannot be used as a number: " + err.Error())
@@ -106,6 +137,8 @@ func TokenIsAssignmentOp(a ArithToken) bool {
 	return a <= ArithAssignAdd && a >= ArithAssignBinaryAnd
 }
 
+// TokenIs checks if the first supplied token is equal to any of the other
+// supplied tokens.
 func TokenIs(toks ...ArithToken) bool {
 	if len(toks) < 2 {
 		return false
@@ -314,8 +347,18 @@ func (n TernaryNode) led(left int64) int64 {
 	// else
 	//	return c
 	// See the ISO C Standard Section 6.5.15
+	//
 	// This function evaluates both sides of the ternary no matter
 	// what the condition is.
+	// This introduces bugs when assignment operators are used alongside
+	// the ternary.
+	// E.g
+	// (0 ? x += 2 : x += 2)
+	// will make x = 4
+	// and
+	// (y ? x = 3 : x = 4)
+	// will make x = 4 regardless of the value of y
+	// Fixing this is a TODO
 
 	n.condition = left
 	n.valTrue = parser.expression(0)

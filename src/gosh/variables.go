@@ -2,29 +2,32 @@ package main
 
 type Variable struct {
 	Val string
-	Set bool // Used to distinguish unset variables from variables with val=""
+	Set bool
 }
 
-type VariableScope map[string]Variable
+type VarScope map[string]Variable
 
 type Scope struct {
-	scopes       []VariableScope
+	scopes       []VarScope
 	currentScope int
 }
 
 func NewScope() *Scope {
 	s := Scope{}
-	s.scopes = []VariableScope{}
-	s.scopes = append(s.scopes, VariableScope{})
+	s.scopes = []VarScope{}
+	s.scopes = append(s.scopes, VarScope{})
 
 	return &s
 }
 
+// Push adds a VarScope to the scope stack.
 func (s *Scope) Push() {
-	s.scopes = append(s.scopes, VariableScope{})
+	s.scopes = append(s.scopes, VarScope{})
 	s.currentScope++
 }
 
+// Pop removes the top VarScope from the scopes stack.
+// Uses currentScope to always preseve the root scope.
 func (s *Scope) Pop() {
 	if s.currentScope > 0 {
 		s.scopes = s.scopes[:s.currentScope]
@@ -59,12 +62,18 @@ func (s *Scope) Get(name string) Variable {
 	return Variable{}
 }
 
-// Unset deletes
+// Unset sets the first variable encountered while walking down the
+// stack to nil values. We need to do this since unsetting local variables
+// still results in them masking set variables in outer scopes.
 func (s *Scope) Unset(name string) {
 	for i := s.currentScope; i >= 0; i-- {
 		_, found := s.scopes[i][name]
 		if found {
-			delete(s.scopes[i], name)
+			v := s.scopes[i][name]
+			v.Set = false
+			v.Val = ""
+			s.scopes[i][name] = v
+			break
 		}
 	}
 }

@@ -127,6 +127,12 @@ func TestArithParserAssignment(t *testing.T) {
 			8,
 			map[string]string{"x": "8"},
 		},
+		{
+			"0 ? x += 2 : x += 2",
+			map[string]string{},
+			2,
+			map[string]string{"x": "2"},
+		},
 	}
 
 	for _, c := range cases {
@@ -146,6 +152,23 @@ func TestArithParserAssignment(t *testing.T) {
 			if gotVar.Val != wantVar {
 				t.Errorf("Variable assignment should modify global scope. '%s' should be '%s' not '%s'", varName, wantVar, gotVar.Val)
 			}
+		}
+	}
+}
+
+func TestParseError(t *testing.T) {
+	GlobalScope = NewScope()
+	cases := []struct {
+		in   string
+		want ParseError
+	}{
+		{"1*=1", ParseError{Fallback: "LHS of assignment 'ArithAssignMultiply' is not a variable"}},
+	}
+
+	for _, c := range cases {
+		_, gotErr := Parse(c.in)
+		if gotErr != c.want {
+			t.Errorf("Parse should return the error\n%s\nfor the input '%s' not\n%s", c.want, c.in, gotErr)
 		}
 	}
 }

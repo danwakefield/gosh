@@ -173,64 +173,63 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 		return ArithEOF, nil
 	}
 
-	// Special case for Hex (0xff) and Octal (0777) constants
-	if c == '0' {
-		// Hex constants
-		if al.hasNext("Xx") {
-			startPos = al.pos
-			endPos = startPos
-			for {
-				//Find the end of the constant
-				if al.hasNextFunc(IsHexDigit) {
-					endPos++
-				} else {
-					//Check if the number is invalid.
-					//We already know the next rune is not a hex digit
-					if IsInName(al.peek()) {
-						return ArithError, LexError{
-							X:   al.input[startPos-2 : endPos+1],
-							Err: ErrHexConstant,
-						}
-					}
-					break
-				}
-			}
-			parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 16, 64)
-			if err != nil {
-				panic("Not Reached: Broken Hex Constant")
-			}
-			return ArithNumber, parsedVal
-		}
-		// Octal constants
-		if al.hasNextFunc(IsOctalDigit) {
-			startPos = al.pos - al.lastRuneWidth
-			endPos = al.pos
-			for {
-				if al.hasNextFunc(IsOctalDigit) {
-					endPos++
-				} else {
-					if IsInName(al.peek()) {
-						return ArithError, LexError{
-							X:   al.input[startPos-1 : endPos+1],
-							Err: ErrOctalConstant,
-						}
-					}
-					break
-				}
-			}
-			parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 8, 64)
-			if err != nil {
-				panic("Not Reached: Broken Octal Constant")
-			}
-			return ArithNumber, parsedVal
-		}
-
-		// Nothing following the 0 means it just reprsents 0
-		return ArithNumber, int64(0)
-	}
-
-	// Finds decimal constants.
+	// Finds Numeric constants.
 	if IsDigit(c) {
+		// Special case for Hex (0xff) and Octal (0777) constants
+		if c == '0' {
+			// Hex constants
+			if al.hasNext("Xx") {
+				startPos = al.pos
+				endPos = al.pos
+				for {
+					//Find the end of the constant
+					if al.hasNextFunc(IsHexDigit) {
+						endPos++
+					} else {
+						//Check if the number is invalid.
+						//We already know the next rune is not a hex digit
+						if IsInName(al.peek()) {
+							return ArithError, LexError{
+								X:   al.input[startPos-2 : endPos+1],
+								Err: ErrHexConstant,
+							}
+						}
+						break
+					}
+				}
+				parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 16, 64)
+				if err != nil {
+					panic("Not Reached: Broken Hex Constant")
+				}
+				return ArithNumber, parsedVal
+			}
+			// Octal constants
+			if al.hasNextFunc(IsOctalDigit) {
+				startPos = al.pos - al.lastRuneWidth
+				endPos = al.pos
+				for {
+					if al.hasNextFunc(IsOctalDigit) {
+						endPos++
+					} else {
+						if IsInName(al.peek()) {
+							return ArithError, LexError{
+								X:   al.input[startPos-1 : endPos+1],
+								Err: ErrOctalConstant,
+							}
+						}
+						break
+					}
+				}
+				parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 8, 64)
+				if err != nil {
+					panic("Not Reached: Broken Octal Constant")
+				}
+				return ArithNumber, parsedVal
+			}
+
+			// Simple Zero constant
+			return ArithNumber, int64(0)
+		}
 		startPos = al.pos - al.lastRuneWidth
 		endPos = al.pos
 		for {
