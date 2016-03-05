@@ -1,8 +1,11 @@
 package variables
 
+import "fmt"
+
 type Variable struct {
-	Val string
-	Set bool
+	Val      string
+	Set      bool
+	ReadOnly bool
 }
 
 type VarScope map[string]Variable
@@ -42,9 +45,12 @@ func (s *Scope) Set(name, val string) {
 		_, found := s.scopes[i][name]
 		if found {
 			v := s.scopes[i][name]
-			v.Val = val
-			s.scopes[i][name] = v
-			return
+			if !v.ReadOnly {
+				v.Val = val
+				s.scopes[i][name] = v
+				return
+			}
+			panic(fmt.Sprintf("'%s' is read only"))
 		}
 	}
 	s.scopes[0][name] = Variable{Val: val, Set: true}

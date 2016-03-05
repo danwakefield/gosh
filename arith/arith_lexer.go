@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/danwakefield/gosh/char"
 )
 
 var (
@@ -175,7 +177,7 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 	}
 
 	// Finds Numeric constants.
-	if IsDigit(c) {
+	if char.IsDigit(c) {
 		// Special case for Hex (0xff) and Octal (0777) constants
 		if c == '0' {
 			// Hex constants
@@ -184,12 +186,12 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 				endPos = al.pos
 				for {
 					//Find the end of the constant
-					if al.hasNextFunc(IsHexDigit) {
+					if al.hasNextFunc(char.IsHexDigit) {
 						endPos++
 					} else {
 						//Check if the number is invalid.
 						//We already know the next rune is not a hex digit
-						if IsInName(al.peek()) {
+						if char.IsInVarName(al.peek()) {
 							return ArithError, LexError{
 								X:   al.input[startPos-2 : endPos+1],
 								Err: ErrHexConstant,
@@ -205,14 +207,14 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 				return ArithNumber, parsedVal
 			}
 			// Octal constants
-			if al.hasNextFunc(IsOctalDigit) {
+			if al.hasNextFunc(char.IsOctalDigit) {
 				startPos = al.pos - al.lastRuneWidth
 				endPos = al.pos
 				for {
-					if al.hasNextFunc(IsOctalDigit) {
+					if al.hasNextFunc(char.IsOctalDigit) {
 						endPos++
 					} else {
-						if IsInName(al.peek()) {
+						if char.IsInVarName(al.peek()) {
 							return ArithError, LexError{
 								X:   al.input[startPos-1 : endPos+1],
 								Err: ErrOctalConstant,
@@ -234,10 +236,10 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 		startPos = al.pos - al.lastRuneWidth
 		endPos = al.pos
 		for {
-			if al.hasNextFunc(IsDigit) {
+			if al.hasNextFunc(char.IsDigit) {
 				endPos++
 			} else {
-				if IsFirstInName(al.peek()) {
+				if char.IsFirstInVarName(al.peek()) {
 					return ArithError, LexError{
 						X:   al.input[startPos : endPos+1],
 						Err: ErrDecimalConstant,
@@ -254,11 +256,11 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 	}
 
 	// Finds variable names.
-	if IsFirstInName(c) {
+	if char.IsFirstInVarName(c) {
 		startPos = al.pos - al.lastRuneWidth
 		endPos = al.pos
 		for {
-			if al.hasNextFunc(IsInName) {
+			if al.hasNextFunc(char.IsInVarName) {
 				endPos++
 			} else {
 				break
