@@ -1,4 +1,3 @@
-//go:generate stringer -type=Token
 package main
 
 type Token int
