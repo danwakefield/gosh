@@ -1,25 +1,27 @@
-package arith
+package arith_test
 
 import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	A "github.com/danwakefield/gosh/arith"
 )
 
 func TestTokenIsBinaryOp(t *testing.T) {
 	cases := []struct {
-		in   ArithToken
+		in   A.ArithToken
 		want bool
 	}{
-		{ArithLessEqual, true},
-		{ArithDivide, true},
-		{ArithEqual, true},
-		{ArithVariable, false},
-		{ArithAssignBinaryAnd, false},
+		{A.ArithLessEqual, true},
+		{A.ArithDivide, true},
+		{A.ArithEqual, true},
+		{A.ArithVariable, false},
+		{A.ArithAssignBinaryAnd, false},
 	}
 
 	for _, c := range cases {
-		got := TokenIsBinaryOp(c.in)
+		got := A.TokenIsBinaryOp(c.in)
 		if got != c.want {
 			t.Errorf(
 				"%s Should be %v not %v",
@@ -31,18 +33,18 @@ func TestTokenIsBinaryOp(t *testing.T) {
 
 func TestTokenIsAssignmentOp(t *testing.T) {
 	cases := []struct {
-		in   ArithToken
+		in   A.ArithToken
 		want bool
 	}{
-		{ArithAssignBinaryAnd, true},
-		{ArithAssignDivide, true},
-		{ArithAssignLeftShift, true},
-		{ArithDivide, false},
-		{ArithLeftParen, false},
+		{A.ArithAssignBinaryAnd, true},
+		{A.ArithAssignDivide, true},
+		{A.ArithAssignLeftShift, true},
+		{A.ArithDivide, false},
+		{A.ArithLeftParen, false},
 	}
 
 	for _, c := range cases {
-		got := TokenIsAssignmentOp(c.in)
+		got := A.TokenIsAssignmentOp(c.in)
 		if got != c.want {
 			t.Errorf("%s Should be %v not %v", c.in, c.want, got)
 		}
@@ -51,13 +53,13 @@ func TestTokenIsAssignmentOp(t *testing.T) {
 
 func TestArithTokenString(t *testing.T) {
 	cases := []struct {
-		in   ArithToken
+		in   A.ArithToken
 		want string
 	}{
-		{ArithVariable, "ArithVariable"},
-		{ArithDivide, "ArithDivide"},
-		{ArithAssignLeftShift, "ArithAssignLeftShift"},
-		{ArithLeftParen, "ArithLeftParen"},
+		{A.ArithVariable, "ArithVariable"},
+		{A.ArithDivide, "ArithDivide"},
+		{A.ArithAssignLeftShift, "ArithAssignLeftShift"},
+		{A.ArithLeftParen, "ArithLeftParen"},
 	}
 
 	for _, c := range cases {
@@ -70,16 +72,16 @@ func TestArithTokenString(t *testing.T) {
 
 func TestArithTokenAssignDiff(t *testing.T) {
 	cases := []struct {
-		in   ArithToken
-		want ArithToken
+		in   A.ArithToken
+		want A.ArithToken
 	}{
-		{ArithBinaryAnd, ArithAssignBinaryAnd},
-		{ArithAdd, ArithAssignAdd},
-		{ArithDivide, ArithAssignDivide},
+		{A.ArithBinaryAnd, A.ArithAssignBinaryAnd},
+		{A.ArithAdd, A.ArithAssignAdd},
+		{A.ArithDivide, A.ArithAssignDivide},
 	}
 
 	for _, c := range cases {
-		got := c.in + ArithAssignDiff
+		got := c.in + A.ArithAssignDiff
 		if got != c.want {
 			t.Errorf("%s should be %s not %s", c.in, c.want, got)
 		}
@@ -89,56 +91,56 @@ func TestArithTokenAssignDiff(t *testing.T) {
 func TestArithLexer(t *testing.T) {
 	cases := []struct {
 		in      string
-		wantTok ArithToken
+		wantTok A.ArithToken
 		wantVal interface{}
 	}{
-		{"_abcd", ArithVariable, "_abcd"},
-		{"5", ArithNumber, int64(5)},
-		{"555", ArithNumber, int64(555)},
-		{"0", ArithNumber, int64(0)},
-		{"0xff", ArithNumber, int64(255)},
-		{"077", ArithNumber, int64(63)},
-		{"", ArithEOF, nil},
-		{"   \n\t  ", ArithEOF, nil},
-		{">", ArithGreaterThan, nil},
-		{">=", ArithGreaterEqual, nil},
-		{">>", ArithRightShift, nil},
-		{">>=", ArithAssignRightShift, nil},
-		{"<", ArithLessThan, nil},
-		{"<=", ArithLessEqual, nil},
-		{"<<", ArithLeftShift, nil},
-		{"<<=", ArithAssignLeftShift, nil},
-		{"|", ArithBinaryOr, nil},
-		{"|=", ArithAssignBinaryOr, nil},
-		{"||", ArithOr, nil},
-		{"&", ArithBinaryAnd, nil},
-		{"&=", ArithAssignBinaryAnd, nil},
-		{"&&", ArithAnd, nil},
-		{"*", ArithMultiply, nil},
-		{"*=", ArithAssignMultiply, nil},
-		{"/", ArithDivide, nil},
-		{"/=", ArithAssignDivide, nil},
-		{"%", ArithRemainder, nil},
-		{"%=", ArithAssignRemainder, nil},
-		{"+", ArithAdd, nil},
-		{"+=", ArithAssignAdd, nil},
-		{"-", ArithSubtract, nil},
-		{"-=", ArithAssignSubtract, nil},
-		{"^", ArithBinaryXor, nil},
-		{"^=", ArithAssignBinaryXor, nil},
-		{"!", ArithNot, nil},
-		{"!=", ArithNotEqual, nil},
-		{"=", ArithAssignment, nil},
-		{"==", ArithEqual, nil},
-		{"(", ArithLeftParen, nil},
-		{")", ArithRightParen, nil},
-		{"~", ArithBinaryNot, nil},
-		{"?", ArithQuestionMark, nil},
-		{":", ArithColon, nil},
+		{"_abcd", A.ArithVariable, "_abcd"},
+		{"5", A.ArithNumber, int64(5)},
+		{"555", A.ArithNumber, int64(555)},
+		{"0", A.ArithNumber, int64(0)},
+		{"0xff", A.ArithNumber, int64(255)},
+		{"077", A.ArithNumber, int64(63)},
+		{"", A.ArithEOF, nil},
+		{"   \n\t  ", A.ArithEOF, nil},
+		{">", A.ArithGreaterThan, nil},
+		{">=", A.ArithGreaterEqual, nil},
+		{">>", A.ArithRightShift, nil},
+		{">>=", A.ArithAssignRightShift, nil},
+		{"<", A.ArithLessThan, nil},
+		{"<=", A.ArithLessEqual, nil},
+		{"<<", A.ArithLeftShift, nil},
+		{"<<=", A.ArithAssignLeftShift, nil},
+		{"|", A.ArithBinaryOr, nil},
+		{"|=", A.ArithAssignBinaryOr, nil},
+		{"||", A.ArithOr, nil},
+		{"&", A.ArithBinaryAnd, nil},
+		{"&=", A.ArithAssignBinaryAnd, nil},
+		{"&&", A.ArithAnd, nil},
+		{"*", A.ArithMultiply, nil},
+		{"*=", A.ArithAssignMultiply, nil},
+		{"/", A.ArithDivide, nil},
+		{"/=", A.ArithAssignDivide, nil},
+		{"%", A.ArithRemainder, nil},
+		{"%=", A.ArithAssignRemainder, nil},
+		{"+", A.ArithAdd, nil},
+		{"+=", A.ArithAssignAdd, nil},
+		{"-", A.ArithSubtract, nil},
+		{"-=", A.ArithAssignSubtract, nil},
+		{"^", A.ArithBinaryXor, nil},
+		{"^=", A.ArithAssignBinaryXor, nil},
+		{"!", A.ArithNot, nil},
+		{"!=", A.ArithNotEqual, nil},
+		{"=", A.ArithAssignment, nil},
+		{"==", A.ArithEqual, nil},
+		{"(", A.ArithLeftParen, nil},
+		{")", A.ArithRightParen, nil},
+		{"~", A.ArithBinaryNot, nil},
+		{"?", A.ArithQuestionMark, nil},
+		{":", A.ArithColon, nil},
 	}
 
 	for _, c := range cases {
-		y := NewArithLexer(c.in)
+		y := A.NewArithLexer(c.in)
 		gotTok, gotVal := y.Lex()
 		if c.wantTok != gotTok {
 			t.Errorf("'%s' should produce the token \n%s\n not\n%s", c.in, c.wantTok, gotTok)
@@ -152,16 +154,16 @@ func TestArithLexer(t *testing.T) {
 func TestArithLexerErrors(t *testing.T) {
 	cases := []struct {
 		in      string
-		wantTok ArithToken
+		wantTok A.ArithToken
 		wantVal interface{}
 	}{
-		{"555a", ArithError, LexError{X: "555a", Err: ErrDecimalConstant}},
-		{"0xfi", ArithError, LexError{X: "0xfi", Err: ErrHexConstant}},
-		{"0778", ArithError, LexError{X: "0778", Err: ErrOctalConstant}},
+		{"555a", A.ArithError, A.LexError{X: "555a", Err: A.ErrDecimalConstant}},
+		{"0xfi", A.ArithError, A.LexError{X: "0xfi", Err: A.ErrHexConstant}},
+		{"0778", A.ArithError, A.LexError{X: "0778", Err: A.ErrOctalConstant}},
 	}
 
 	for _, c := range cases {
-		y := NewArithLexer(c.in)
+		y := A.NewArithLexer(c.in)
 		gotTok, gotVal := y.Lex()
 		if c.wantTok != gotTok {
 			t.Errorf("'%s' should produce the token \n%s\n not\n%s", c.in, c.wantTok, gotTok)
@@ -176,7 +178,7 @@ func TestArithLexerErrors(t *testing.T) {
 
 func TestArithLexerComplex(t *testing.T) {
 	type lexPair struct {
-		Tok ArithToken
+		Tok A.ArithToken
 		Val interface{}
 	}
 	type complexTestCase struct {
@@ -189,30 +191,30 @@ func TestArithLexerComplex(t *testing.T) {
 		ctc.want = []lexPair{}
 		ctc.want = append(ctc.want, lexems...)
 		// Append the EOF lexem
-		ctc.want = append(ctc.want, lexPair{Tok: ArithEOF})
+		ctc.want = append(ctc.want, lexPair{Tok: A.ArithEOF})
 		return ctc
 	}
 
 	cases := []complexTestCase{
 		TC(
 			"5 >= 4",
-			lexPair{Tok: ArithNumber, Val: int64(5)},
-			lexPair{Tok: ArithGreaterEqual},
-			lexPair{Tok: ArithNumber, Val: int64(4)},
+			lexPair{Tok: A.ArithNumber, Val: int64(5)},
+			lexPair{Tok: A.ArithGreaterEqual},
+			lexPair{Tok: A.ArithNumber, Val: int64(4)},
 		),
 		TC(
 			">>= <<= 0xff 067 55 ==",
-			lexPair{Tok: ArithAssignRightShift},
-			lexPair{Tok: ArithAssignLeftShift},
-			lexPair{Tok: ArithNumber, Val: int64(255)},
-			lexPair{Tok: ArithNumber, Val: int64(55)},
-			lexPair{Tok: ArithNumber, Val: int64(55)},
-			lexPair{Tok: ArithEqual},
+			lexPair{Tok: A.ArithAssignRightShift},
+			lexPair{Tok: A.ArithAssignLeftShift},
+			lexPair{Tok: A.ArithNumber, Val: int64(255)},
+			lexPair{Tok: A.ArithNumber, Val: int64(55)},
+			lexPair{Tok: A.ArithNumber, Val: int64(55)},
+			lexPair{Tok: A.ArithEqual},
 		),
 	}
 
 	for _, c := range cases {
-		y := NewArithLexer(c.in)
+		y := A.NewArithLexer(c.in)
 		for pairCount, want := range c.want {
 			gotTok, gotVal := y.Lex()
 			if want.Tok != gotTok {

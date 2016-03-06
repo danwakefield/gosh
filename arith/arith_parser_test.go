@@ -1,8 +1,9 @@
-package arith
+package arith_test
 
 import (
 	"testing"
 
+	A "github.com/danwakefield/gosh/arith"
 	"github.com/danwakefield/gosh/variables"
 )
 
@@ -14,20 +15,20 @@ func TestArithParserBinops(t *testing.T) {
 		want int64
 	}
 	cases := []TestCase{
-		{"5 <= 4", ShellFalse},
-		{"4 <= 4", ShellTrue},
-		{"3 <= 4", ShellTrue},
-		{"3 >= 4", ShellFalse},
-		{"4 >= 4", ShellTrue},
-		{"5 >= 4", ShellTrue},
-		{"5 <  4", ShellFalse},
-		{"3 <  4", ShellTrue},
-		{"3 >  4", ShellFalse},
-		{"5 >  4", ShellTrue},
-		{"5 == 4", ShellFalse},
-		{"4 == 4", ShellTrue},
-		{"4 != 4", ShellFalse},
-		{"5 != 4", ShellTrue},
+		{"5 <= 4", A.ShellFalse},
+		{"4 <= 4", A.ShellTrue},
+		{"3 <= 4", A.ShellTrue},
+		{"3 >= 4", A.ShellFalse},
+		{"4 >= 4", A.ShellTrue},
+		{"5 >= 4", A.ShellTrue},
+		{"5 <  4", A.ShellFalse},
+		{"3 <  4", A.ShellTrue},
+		{"3 >  4", A.ShellFalse},
+		{"5 >  4", A.ShellTrue},
+		{"5 == 4", A.ShellFalse},
+		{"4 == 4", A.ShellTrue},
+		{"4 != 4", A.ShellFalse},
+		{"5 != 4", A.ShellTrue},
 		{"5 & 4", 4},
 		{"3 & 4", 0},
 		{"3 | 4", 7},
@@ -44,7 +45,7 @@ func TestArithParserBinops(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got, err := ParseArith(c.in, EmptyScope)
+		got, err := A.ParseArith(c.in, EmptyScope)
 		if err != nil {
 			t.Errorf("Parse returned an error: %s", err.Error())
 		}
@@ -62,16 +63,16 @@ func TestArithPrefix(t *testing.T) {
 	cases := []TestCase{
 		{"~4", -5},
 		{"~~4", 4},
-		{"!1", ShellTrue},
-		{"!4", ShellTrue},
-		{"!0", ShellFalse},
-		{"!!1", ShellFalse},
+		{"!1", A.ShellTrue},
+		{"!4", A.ShellTrue},
+		{"!0", A.ShellFalse},
+		{"!!1", A.ShellFalse},
 		{"1+2*3", 7},
 		{"1+(2*3)", 7},
 		{"(1+2)*3", 9},
 	}
 	for _, c := range cases {
-		got, err := ParseArith(c.in, EmptyScope)
+		got, err := A.ParseArith(c.in, EmptyScope)
 		if err != nil {
 			t.Errorf("Parse returned an error: %s", err.Error())
 		}
@@ -91,7 +92,7 @@ func TestArithParserTernary(t *testing.T) {
 		{"0 ? 3 : 4", 4},
 	}
 	for _, c := range cases {
-		got, err := ParseArith(c.in, EmptyScope)
+		got, err := A.ParseArith(c.in, EmptyScope)
 		if err != nil {
 			t.Errorf("Parse returned an error: %s", err.Error())
 		}
@@ -146,7 +147,7 @@ func TestArithParserAssignment(t *testing.T) {
 		for k, v := range c.inVars {
 			scp.Set(k, v)
 		}
-		got, err := ParseArith(c.inString, scp)
+		got, err := A.ParseArith(c.inString, scp)
 		if err != nil {
 			t.Errorf("Parse returned an error: %s", err.Error())
 		}
@@ -165,13 +166,13 @@ func TestArithParserAssignment(t *testing.T) {
 func TestParseError(t *testing.T) {
 	cases := []struct {
 		in   string
-		want ParseError
+		want A.ParseError
 	}{
-		{"1*=1", ParseError{Fallback: "LHS of assignment 'ArithAssignMultiply' is not a variable"}},
+		{"1*=1", A.ParseError{Fallback: "LHS of assignment 'ArithAssignMultiply' is not a variable"}},
 	}
 
 	for _, c := range cases {
-		_, gotErr := ParseArith(c.in, EmptyScope)
+		_, gotErr := A.ParseArith(c.in, EmptyScope)
 		if gotErr != c.want {
 			t.Errorf("Parse should return the error\n%s\nfor the input '%s' not\n%s", c.want, c.in, gotErr)
 		}

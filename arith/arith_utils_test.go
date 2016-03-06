@@ -1,6 +1,10 @@
-package arith
+package arith_test
 
-import "testing"
+import (
+	"testing"
+
+	A "github.com/danwakefield/gosh/arith"
+)
 
 func TestLeftShift(t *testing.T) {
 	type TestCase struct {
@@ -16,7 +20,7 @@ func TestLeftShift(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got := LeftShift(c.ina, c.inb)
+		got := A.LeftShift(c.ina, c.inb)
 		if got != c.want {
 			t.Errorf("%d << %d should be %d not %d", c.ina, c.inb, c.want, got)
 		}
@@ -38,7 +42,7 @@ func TestRightShift(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got := RightShift(c.ina, c.inb)
+		got := A.RightShift(c.ina, c.inb)
 		if got != c.want {
 			t.Errorf("%d >> %d should be %d not %d", c.ina, c.inb, c.want, got)
 		}
