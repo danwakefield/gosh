@@ -42,9 +42,8 @@ func (s *Scope) Pop() {
 // If no variable of that name exists it is created in the root scope.
 func (s *Scope) Set(name, val string) {
 	for i := s.currentScope; i >= 0; i-- {
-		_, found := s.scopes[i][name]
+		v, found := s.scopes[i][name]
 		if found {
-			v := s.scopes[i][name]
 			if !v.ReadOnly {
 				v.Val = val
 				s.scopes[i][name] = v
@@ -73,9 +72,8 @@ func (s *Scope) Get(name string) Variable {
 // still results in them masking set variables in outer scopes.
 func (s *Scope) Unset(name string) {
 	for i := s.currentScope; i >= 0; i-- {
-		_, found := s.scopes[i][name]
+		v, found := s.scopes[i][name]
 		if found {
-			v := s.scopes[i][name]
 			v.Set = false
 			v.Val = ""
 			s.scopes[i][name] = v
