@@ -25,65 +25,6 @@ func (le LexError) Error() string {
 	return "Error parsing '" + le.X + "' :" + le.Err.Error()
 }
 
-type ArithToken int
-
-const (
-	EOFRune = -1
-
-	ArithError ArithToken = iota
-	ArithAssignment
-	ArithNot
-	ArithAnd
-	ArithOr
-	ArithNumber
-	ArithVariable
-
-	// These tokens are all binary operations requiring two arguments
-	// (E.g 1+2)
-	ArithLessEqual
-	ArithGreaterEqual
-	ArithLessThan
-	ArithGreaterThan
-	ArithEqual
-	ArithNotEqual
-
-	// These binary operations also have assignment equivalents
-	ArithBinaryAnd
-	ArithBinaryOr
-	ArithBinaryXor
-	ArithLeftShift
-	ArithRightShift
-	ArithRemainder
-	ArithMultiply
-	ArithDivide
-	ArithSubtract
-	ArithAdd
-
-	// These tokens perform assignment to a variable as well as an
-	// operation (E.g  x+=1)
-	ArithAssignBinaryAnd
-	ArithAssignBinaryOr
-	ArithAssignBinaryXor
-	ArithAssignLeftShift
-	ArithAssignRightShift
-	ArithAssignRemainder
-	ArithAssignMultiply
-	ArithAssignDivide
-	ArithAssignSubtract
-	ArithAssignAdd
-
-	ArithLeftParen
-	ArithRightParen
-	ArithBinaryNot
-	ArithQuestionMark
-	ArithColon
-
-	ArithEOF
-
-	// ArithAssignDiff is used to turn an Arith token into its ArithAssign equivalent.
-	ArithAssignDiff ArithToken = ArithAssignBinaryAnd - ArithBinaryAnd
-)
-
 // ArithLexer ...
 type ArithLexer struct {
 	input         string
@@ -100,7 +41,6 @@ func NewArithLexer(s string) *ArithLexer {
 }
 
 // next returns the next available rune from the input string.
-// returns EOFRune
 func (al *ArithLexer) next() rune {
 	if al.pos >= al.inputLength {
 		al.lastRuneWidth = 0
@@ -112,8 +52,7 @@ func (al *ArithLexer) next() rune {
 	return r
 }
 
-// backup undoes a call to next.
-// Only works once per invocation of call, multiple calls are idempotent
+// backup reverses a call to next idempotently
 func (al *ArithLexer) backup() {
 	al.pos -= al.lastRuneWidth
 	al.lastRuneWidth = 0
