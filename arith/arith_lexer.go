@@ -141,8 +141,8 @@ func (al *ArithLexer) hasNext(s string) bool {
 
 // hasNextFunc uses the supplied func to check the validity of the next
 // character from the input
-func (al *ArithLexer) hasNextFunc(f func(rune) bool) bool {
-	if f(al.next()) {
+func (al *ArithLexer) hasNextFunc(fn func(rune) bool) bool {
+	if fn(al.next()) {
 		return true
 	}
 	al.backup()
