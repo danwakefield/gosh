@@ -50,7 +50,7 @@ var (
 		TEnd:          true,
 	}
 
-	ParseKeywords = map[string]Token{
+	KeywordLookup = map[string]Token{
 		"!":     TNot,
 		"case":  TCase,
 		"do":    TDo,

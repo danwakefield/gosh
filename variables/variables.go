@@ -1,12 +1,19 @@
 package variables
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type Variable struct {
 	Val      string
 	Set      bool
 	ReadOnly bool
 }
+
+type ScopeOption int
+
+const LocalScope ScopeOption = 1
 
 type VarScope map[string]Variable
 
@@ -40,7 +47,11 @@ func (s *Scope) Pop() {
 
 // Set walks down the scope stack checking for an existing variable to update.
 // If no variable of that name exists it is created in the root scope.
-func (s *Scope) Set(name, val string) {
+func (s *Scope) Set(name, val string, opts ...ScopeOption) {
+	if len(opts) > 0 {
+		// We only have Local option ATM forget checking them.
+		s.scopes[s.currentScope][name] = Variable{Val: val, Set: true}
+	}
 	for i := s.currentScope; i >= 0; i-- {
 		v, found := s.scopes[i][name]
 		if found {
@@ -53,6 +64,16 @@ func (s *Scope) Set(name, val string) {
 		}
 	}
 	s.scopes[0][name] = Variable{Val: val, Set: true}
+}
+
+// SetString Sets a variable that is a single string in the form
+// 'A=1'
+func (s *Scope) SetString(input string, opts ...ScopeOption) {
+	parts := strings.SplitN(input, "=", 2)
+	if len(parts) != 2 {
+		panic("SetString given a string not containing an assignment")
+	}
+	s.Set(parts[0], parts[1], opts...)
 }
 
 // Get walks down the scope stack and returns the variable if found.
@@ -80,4 +101,22 @@ func (s *Scope) Unset(name string) {
 			break
 		}
 	}
+}
+
+func (s *Scope) Environ() []string {
+	// This cannot be the best way.
+	flatMap := map[string]string{}
+	for i := 0; i <= s.currentScope; i++ {
+		for k, v := range s.scopes[i] {
+			if v.Set {
+				flatMap[k] = v.Val
+			}
+		}
+	}
+
+	environString := []string{}
+	for k, v := range flatMap {
+		environString = append(environString, fmt.Sprintf("%s=%s", k, v))
+	}
+	return environString
 }

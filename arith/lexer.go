@@ -4,7 +4,6 @@ package arith
 import (
 	"errors"
 	"strconv"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/danwakefield/gosh/char"
@@ -29,20 +28,20 @@ func (le LexError) Error() string {
 type ArithLexer struct {
 	input         string
 	pos           int
-	inputLength   int
+	inputLen      int
 	lastRuneWidth int
 }
 
 func NewArithLexer(s string) *ArithLexer {
 	return &ArithLexer{
-		input:       s,
-		inputLength: len(s),
+		input:    s,
+		inputLen: len(s),
 	}
 }
 
 // next returns the next available rune from the input string.
 func (al *ArithLexer) next() rune {
-	if al.pos >= al.inputLength {
+	if al.pos >= al.inputLen {
 		al.lastRuneWidth = 0
 		return EOFRune
 	}
@@ -68,10 +67,8 @@ func (al *ArithLexer) peek() rune {
 	return r
 }
 
-// hasNext checks that the next character of the input is one of the
-// characters in the string s
-func (al *ArithLexer) hasNext(s string) bool {
-	if strings.IndexRune(s, al.next()) >= 0 {
+func (al *ArithLexer) hasNext(r rune) bool {
+	if r == al.next() {
 		return true
 	}
 	al.backup()
@@ -120,7 +117,7 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 		// Special case for Hex (0xff) and Octal (0777) constants
 		if c == '0' {
 			// Hex constants
-			if al.hasNext("Xx") {
+			if al.hasNext('x') || al.hasNext('X') {
 				startPos = al.pos
 				endPos = al.pos
 				for {
@@ -232,14 +229,14 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 			al.backup()
 		}
 	case '|':
-		if al.hasNext("|") {
+		if al.hasNext('|') {
 			t = ArithOr
 		} else {
 			t = ArithBinaryOr
 			checkAssignmentOp = true
 		}
 	case '&':
-		if al.hasNext("&") {
+		if al.hasNext('&') {
 			t = ArithAnd
 		} else {
 			t = ArithBinaryAnd
@@ -264,13 +261,13 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 		t = ArithBinaryXor
 		checkAssignmentOp = true
 	case '!':
-		if al.hasNext("=") {
+		if al.hasNext('=') {
 			t = ArithNotEqual
 		} else {
 			t = ArithNot
 		}
 	case '=':
-		if al.hasNext("=") {
+		if al.hasNext('=') {
 			t = ArithEqual
 		} else {
 			t = ArithAssignment
@@ -290,7 +287,7 @@ func (al *ArithLexer) Lex() (ArithToken, interface{}) {
 	}
 
 	if checkAssignmentOp {
-		if al.hasNext("=") {
+		if al.hasNext('=') {
 			t += ArithAssignDiff
 		}
 	}

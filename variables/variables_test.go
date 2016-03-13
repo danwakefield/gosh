@@ -60,3 +60,20 @@ func TestScopeVariables(t *testing.T) {
 		t.Errorf("unsetting variable did not work")
 	}
 }
+
+func TestSetString(t *testing.T) {
+	s := NewScope()
+
+	s.SetString("foo=bar")
+	v := s.Get("foo")
+	if v.Val != "bar" {
+		t.Errorf("SetString did not work")
+	}
+
+	// Check variable is split at first =
+	s.SetString("bar=foo=baz")
+	v = s.Get("bar")
+	if v.Val != "foo=baz" {
+		t.Errorf("SetString did not split variable string correctl")
+	}
+}

@@ -38,11 +38,11 @@ func ParseArith(input string, scp *variables.Scope) (i int64, err error) {
 			if _, ok := r.(runtime.Error); ok {
 				panic(r)
 			}
-			switch r.(type) {
+			switch t := r.(type) {
 			case string:
-				err = ParseError{Fallback: r.(string)}
+				err = ParseError{Fallback: t}
 			case error:
-				err = ParseError{Err: r.(error)}
+				err = ParseError{Err: t}
 			}
 		}
 	}()
@@ -344,29 +344,33 @@ type TernaryNode struct {
 
 func (n TernaryNode) nud() int64 { panic("Nud called on TernaryNode") }
 func (n TernaryNode) led(left int64) int64 {
-	// Somewhat confusingly the shell's ternary operator does not work using
-	// the shell's True/False semantics.
-	// The actual operation is Given (a ? b : c)
-	// if (a != 0)
-	//	return b
-	// else
-	//	return c
-	// See the ISO C Standard Section 6.5.15
-	//
-	// This function evaluates both sides of the ternary no matter
-	// what the condition is.
-	// This introduces bugs when assignment operators are used alongside
-	// the ternary.
-	// E.g
-	// (0 ? x += 2 : x += 2)
-	// will make x = 4
-	// The replaced value will also be 4
-	// so for (1 + (0 ? x += 2 : x += 2))
-	// will be 5
-	// and
-	// (y ? x = 3 : x = 4)
-	// will make x = 4 regardless of the value of y
-	// Fixing this is a TODO
+	/* Somewhat confusingly the shell's ternary operator does not work using
+	   the shell's True/False semantics.
+	   The actual operation is, given (a ? b : c)
+	   if (a != 0)
+	      return b
+	   else
+	      return c
+	   See the ISO C Standard Section 6.5.15
+
+	   BUG
+	   This function evaluates both sides of the ternary no matter
+	   what the condition is.
+	   This introduces bugs when assignment operators are used alongside
+	   the ternary.
+	   E.g
+	    (0 ? x += 2 : x += 2)
+	   will assign x = 4
+	   The replaced value will also be 4 so
+	    (1 + (0 ? x += 2 : x += 2)) == 5
+
+	    (y ? x = 3 : x = 4)
+	   will make x = 4 regardless of the value of y
+
+	   Creating a Q of lexed tokens while blocking assignments then
+	   replaying the tokens for the section that should be evaluted
+	   should fix this.
+	*/
 
 	n.condition = left
 	n.valTrue = parser.expression(0)
