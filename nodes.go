@@ -1,9 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
+
+	"gopkg.in/logex.v1"
 
 	"github.com/danwakefield/gosh/variables"
 )
@@ -53,6 +54,34 @@ func (c CommandArg) Expand(scp *variables.Scope) string {
 	return c.Raw
 }
 
+// NodeIf is the structure that is used for 'if', 'elif' and 'else'
+// as an 'if' or 'elif' Condition is required and Else is optionally nil to
+// indicate the end of the if chain.
+// as an 'else' Condition is required to be nil.
+type NodeIf struct {
+	Condition NodeCommand
+	Else      NodeIf
+	Body      NodeCommand
+}
+
+func (n NodeIf) NodeType() NodeType { return NIf }
+func (n NodeIf) Eval(scp *variables.Scope) ExitStatus {
+	if n.Condition == nil {
+		return n.Body.Eval(scp)
+	}
+
+	runBody := n.Condition.Eval(scp)
+	if runBody == ExitSuccess {
+		return n.Body.Eval(scp)
+	}
+
+	if n.Else != nil {
+		return n.Else.Eval(scp)
+	}
+
+	return ExitSuccess
+}
+
 type NodeCommand struct {
 	Assign []string
 	Args   []CommandArg
@@ -88,12 +117,12 @@ func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	fmt.Println("=======ENV===============\n")
-	fmt.Println(env)
-	fmt.Println("=======RUN===============\n")
+	logex.Debug("=======ENV===============\n")
+	logex.Pretty(env)
+	logex.Debug("=======RUN===============\n")
 	es := cmd.Run()
 	// TODO: Real Error Codes
-	fmt.Println("=========================\n")
+	logex.Debug("=========================\n")
 	if es != nil {
 		return ExitFailure
 	}

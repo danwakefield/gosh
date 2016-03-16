@@ -3,7 +3,7 @@ package char
 import "strings"
 
 func IsSpecial(r rune) bool {
-	return IsDigit(r) || strings.IndexRune("!#$*-?@", r) != -1
+	return strings.IndexRune("!#$*-?@", r) != -1
 }
 
 func IsAlpha(r rune) bool {

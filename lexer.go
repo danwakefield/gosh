@@ -8,7 +8,29 @@ import (
 	"github.com/danwakefield/gosh/char"
 )
 
-const EOFRune = -1
+const (
+	EOFRune             rune = -1
+	SentinalEscape      rune = 201
+	SentinalVariable    rune = 202
+	SentinalEndVariable rune = 203
+	SentinalBackquote   rune = 204
+	SentinalArith       rune = 206
+	SentinalEndArith    rune = 207
+	SentinalQuote       rune = 210
+
+	VarSubCheckNull rune = (iota + 1)
+	VarSubNormal
+	VarSubMinus
+	VarSubPlus
+	VarSubQuestion
+	VarSubAssign
+	VarSubTrimRight
+	VarSubTrimRightMax
+	VarSubTrimLeft
+	VarSubTrimLeftMax
+	VarSubLength
+	VarSubSeperator
+)
 
 var (
 	ErrQuotedString = errors.New("Unterminated quoted string")
@@ -24,17 +46,18 @@ type LexItem struct {
 }
 
 type Lexer struct {
-	input       string
-	inputLen    int
-	lineNo      int
-	lastPos     int
-	pos         int
-	backupWidth int
-	state       StateFn
-	itemChan    chan LexItem
-	buf         bytes.Buffer
-	backslash   bool
-	quoted      bool
+	input              string
+	inputLen           int
+	lineNo             int
+	lastPos            int
+	pos                int
+	backupWidth        int
+	state              StateFn
+	itemChan           chan LexItem
+	buf                bytes.Buffer
+	backslash          bool
+	quoted             bool
+	variableReturnFunc StateFn
 
 	CheckNewline bool
 	CheckAlias   bool
@@ -121,6 +144,8 @@ func (l *Lexer) NextLexItem() LexItem {
 		}
 	}
 
+	// Expand Alias.
+
 	return tok
 }
 
@@ -187,22 +212,126 @@ func lexSubstitution(l *Lexer) StateFn {
 
 	switch {
 	default:
-		// If $ is not followed by a valid variable character
 		l.buf.WriteRune('$')
 		l.backup()
 		return lexWord
 	case c == '(':
-		// ARITH / SUBSHELL
+		if l.hasNext('(') {
+			return lexArith
+		}
+		return lexSubshell
 	case c == '{':
-		// VAR / VAROP
-	case char.IsSpecial(c), char.IsFirstInVarName(c):
-		//
+		return lexVariableComplex
+	case char.IsFirstInVarName(c), char.IsDigit(c), char.IsSpecial(c):
+		l.backup()
+		return lexVariableSimple
 	}
-
-	return nil //TODO
+	return nil
 }
 
+func lexVariableSimple(l *Lexer) StateFn {
+	l.buf.WriteRune(SentinalVariable)
+	l.buf.WriteRune(VarSubNormal)
+	defer l.buf.WriteRune(SentinalEndVariable)
+
+	c := l.next()
+	switch {
+	case char.IsSpecial(c):
+		l.buf.WriteRune(c)
+	case char.IsDigit(c):
+		for {
+			l.buf.WriteRune(c)
+			c = l.next()
+			if !char.IsDigit(c) {
+				l.backup()
+				break
+			}
+		}
+	case char.IsFirstInVarName(c):
+		for {
+			l.buf.WriteRune(c)
+			c = l.next()
+			if !char.IsInVarName(c) {
+				l.backup()
+				break
+			}
+		}
+	default:
+		l.backup()
+	}
+
+	return l.variableReturnFunc
+}
+func lexVariableComplex(l *Lexer) StateFn {
+	// Upon entering we have read the opening '{'
+	l.buf.WriteRune(SentinalVariable)
+	defer l.buf.WriteRune(SentinalEndVariable)
+	varSubSentinal := rune(0)
+
+	c := l.next()
+	if c == '#' {
+		// The NParam Special Var
+		if l.hasNext('}') {
+			l.buf.WriteRune(VarSubNormal)
+			l.buf.WriteRune('#')
+			return l.variableReturnFunc
+		}
+
+		// Length variable operator
+		varSubSentinal = VarSubLength
+		c = l.next()
+	}
+
+	varbuf := bytes.Buffer{}
+	switch {
+	case char.IsSpecial(c):
+		varbuf.WriteRune(c)
+	case char.IsDigit(c):
+		for {
+			varbuf.WriteRune(c)
+			c = l.next()
+			if !char.IsDigit(c) {
+				l.backup()
+				break
+			}
+		}
+	case char.IsFirstInVarName(c):
+		for {
+			varbuf.WriteRune(c)
+			c = l.next()
+			if !char.IsInVarName(c) {
+				l.backup()
+				break
+			}
+		}
+	case c == EOFRune:
+		l.backup()
+		return l.variableReturnFunc
+	}
+
+	if l.hasNext('}') {
+		if varSubSentinal != rune(0) {
+			varbuf.WriteRune(varSubSentinal)
+		} else {
+			varbuf.WriteRune(VarSubNormal)
+		}
+		l.buf.Write(varbuf.Bytes())
+		return l.variableReturnFunc
+	}
+
+	// We have to check for operators
+	c = l.next()
+
+	panic("Bad substitution")
+
+}
 func lexBackQuote(l *Lexer) StateFn {
+	return nil
+}
+func lexSubshell(l *Lexer) StateFn {
+	return nil
+}
+func lexArith(l *Lexer) StateFn {
 	return nil
 }
 func lexWord(l *Lexer) StateFn {
@@ -217,6 +346,7 @@ OuterLoop:
 				l.buf.WriteRune('\\')
 				break
 			}
+			l.buf.WriteRune(SentinalEscape)
 			l.buf.WriteRune(c)
 			l.backslash = false
 			continue
@@ -235,6 +365,7 @@ OuterLoop:
 		case '`':
 			return lexBackQuote
 		case '$':
+			l.variableReturnFunc = lexWord
 			return lexSubstitution
 		default:
 			l.buf.WriteRune(c)
@@ -246,13 +377,14 @@ OuterLoop:
 }
 
 func lexDoubleQuote(l *Lexer) StateFn {
-	// XXX: Fix interpolation
+	l.buf.WriteRune(SentinalQuote)
+	defer l.buf.WriteRune(SentinalQuote)
 	for {
 		c := l.next()
 
 		switch c {
 		case EOFRune:
-			panic(ErrQuotedString) //XXX: Dont make this panic
+			panic(ErrQuotedString) //TODO: Dont make this panic
 		case '\x01':
 			continue
 		case '"':
@@ -264,6 +396,8 @@ func lexDoubleQuote(l *Lexer) StateFn {
 }
 
 func lexSingleQuote(l *Lexer) StateFn {
+	l.buf.WriteRune(SentinalQuote)
+	defer l.buf.WriteRune(SentinalQuote)
 	// We have consumed the first single quote before entering
 	// this state.
 	for {
@@ -271,7 +405,7 @@ func lexSingleQuote(l *Lexer) StateFn {
 
 		switch c {
 		case EOFRune:
-			panic(ErrQuotedString) //XXX: Dont make this panic
+			panic(ErrQuotedString) //TODO: Dont make this panic
 		case '\x01':
 			continue
 		case '\'':
