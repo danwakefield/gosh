@@ -12,6 +12,8 @@ type Parser struct {
 	y           *Lexer
 	lastLexItem LexItem
 	pushBack    bool
+
+	SkipNewlines bool
 }
 
 func NewParser(input string) *Parser {
@@ -23,19 +25,26 @@ func NewParser(input string) *Parser {
 func (p *Parser) next() LexItem {
 	if p.pushBack {
 		p.pushBack = false
-		logex.Debugf("Token [Re]read: '%s'\n", p.lastLexItem)
+		logex.Debugf("Token [Re]read:")
+		logex.Struct(p.lastLexItem)
 		return p.lastLexItem
 	}
 	li := p.y.NextLexItem()
 	p.lastLexItem = li
-	logex.Debugf("Token read: %s'\n", p.lastLexItem)
+	logex.Debugf("Token read:")
+	logex.Struct(p.lastLexItem)
+	if p.SkipNewlines && li.Tok == TNewLine {
+		logex.Debug("Abandon Newline")
+		return p.next()
+	}
 	return li
 }
 
 func (p *Parser) expect(expected ...Token) {
 	got := p.next()
 	for _, expect := range expected {
-		if expect == got {
+		if expect == got.Tok {
+			logex.Debugf("Success %s", expect)
 			return
 		}
 	}
@@ -56,7 +65,8 @@ func (p *Parser) hasNextToken(want Token) bool {
 }
 
 func (p *Parser) Parse() Node {
-	logex.Debugf("Enter\n")
+	logex.Debug("Enter\n")
+	defer logex.Debug("Exit\n")
 	tok := p.next()
 	var r Node // Return Node
 
@@ -70,7 +80,6 @@ func (p *Parser) Parse() Node {
 		r = p.list()
 	}
 
-	logex.Debugf("Exit\n")
 	return r
 }
 
@@ -83,52 +92,93 @@ func (p *Parser) andOr() Node {
 }
 
 func (p *Parser) pipeline() Node {
-	logex.Debugf("Enter\n")
+	logex.Debug("Enter\n")
+	defer logex.Debug("Exit\n")
 	negate := false
 
 	if p.hasNextToken(TNot) {
 		negate = !negate
 	}
 
-	n1 := p.command()
+	returnNode := p.command()
 
 	if negate {
-		return NodeNegate{N: n1}
+		return NodeNegate{N: returnNode}
 	}
-	logex.Debugf("Exit\n")
-	return n1
+	return returnNode
 }
 
 func (p *Parser) command() Node {
-	logex.Debugf("Enter\n")
+	logex.Debug("Enter\n")
+	defer logex.Debug("Exit\n")
 	tok := p.next()
-	var r Node
+	var returnNode Node
 
 	switch tok.Tok {
 	default:
 		logex.Fatal(fmt.Sprintf("Command Doesnt understand\n %#v\n Token: %s", tok, tok.Tok))
 	case TIf:
 		n := NodeIf{}
-		n.Condition = p.simpleCommand()
+		// We need a copy of the orignal pointer to return as the head of the if chain
+		ifHead := &n
+		p.SkipNewlines = true
+		ifCondition := p.simpleCommand() //TODO: list(0)
+		n.Condition = &ifCondition
 		p.expect(TThen)
-		n.Body = p.simpleCommand()
+		n.Body = p.simpleCommand() //TODO: list(0)
 
 		// Elif's
 		for {
 			if p.hasNextToken(TElif) {
+				nelif := NodeIf{}
+				ifCondition = p.simpleCommand() //TODO: list(0)
+				nelif.Condition = &ifCondition
+				p.expect(TThen)
+				nelif.Body = p.simpleCommand() //TODO: list(0)
+				n.Else = &nelif
+				n = nelif
+			} else {
+				break
 			}
+			/*
+			* list(0) means that TSEMI/TNL is advanced and we dont have to
+			* expect it in if, while, etc.
+			 */
 		}
 
+		if p.hasNextToken(TElse) {
+			nelse := NodeIf{}
+			nelse.Body = p.simpleCommand()
+			n.Else = &nelse
+		}
+
+		p.expect(TFi)
+		p.SkipNewlines = false
+		returnNode = *ifHead
+	case TWhile, TUntil:
+		n := NodeLoop{}
+		n.Type = NWhile // While is more common
+		if tok.Tok == TUntil {
+			n.Type = NUntil
+		}
+
+		n.Condition = p.simpleCommand() //TODO: list(0)
+		p.expect(TDo)
+		n.Body = p.simpleCommand() //TODO: list(0)
+		p.expect(TDone)
+
+		returnNode = n
+	case TBegin:
+		returnNode = p.simpleCommand() //TODO: list(0)
 	case TWord:
 		p.backup()
-		r = p.simpleCommand()
+		returnNode = p.simpleCommand()
 	}
 
-	logex.Debugf("Exit\n")
-	return r
+	return returnNode
 }
 
-func (p *Parser) simpleCommand() Node {
+func (p *Parser) simpleCommand() NodeCommand {
 	logex.Debugf("Enter\n")
 	tok := p.next()
 	assignments := []string{}

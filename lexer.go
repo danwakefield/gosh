@@ -43,6 +43,7 @@ type LexItem struct {
 	Pos    int
 	LineNo int
 	Val    string
+	Quoted bool
 }
 
 type Lexer struct {
@@ -84,8 +85,10 @@ func (l *Lexer) emit(t Token) {
 		Pos:    l.lastPos,
 		LineNo: l.lineNo,
 		Val:    l.buf.String(),
+		Quoted: l.quoted,
 	}
 	l.lastPos = l.pos
+	l.quoted = false
 	l.buf.Reset()
 }
 
@@ -133,7 +136,7 @@ func (l *Lexer) NextLexItem() LexItem {
 		}
 	}
 
-	if tok.Tok != TWord || l.quoted {
+	if tok.Tok != TWord || tok.Quoted {
 		return tok
 	}
 
@@ -377,8 +380,8 @@ OuterLoop:
 }
 
 func lexDoubleQuote(l *Lexer) StateFn {
-	l.buf.WriteRune(SentinalQuote)
-	defer l.buf.WriteRune(SentinalQuote)
+	// l.buf.WriteRune(SentinalQuote)
+	// defer l.buf.WriteRune(SentinalQuote)
 	for {
 		c := l.next()
 
@@ -396,8 +399,8 @@ func lexDoubleQuote(l *Lexer) StateFn {
 }
 
 func lexSingleQuote(l *Lexer) StateFn {
-	l.buf.WriteRune(SentinalQuote)
-	defer l.buf.WriteRune(SentinalQuote)
+	// l.buf.WriteRune(SentinalQuote)
+	// defer l.buf.WriteRune(SentinalQuote)
 	// We have consumed the first single quote before entering
 	// this state.
 	for {

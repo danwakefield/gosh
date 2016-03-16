@@ -12,9 +12,9 @@ import (
 type ExitStatus int
 
 const (
-	ExitSuccess        = 0
-	ExitFailure        = 1
-	ExitUnknownCommand = 127
+	ExitSuccess        ExitStatus = 0
+	ExitFailure        ExitStatus = 1
+	ExitUnknownCommand ExitStatus = 127
 )
 
 type Node interface {
@@ -54,13 +54,42 @@ func (c CommandArg) Expand(scp *variables.Scope) string {
 	return c.Raw
 }
 
+type NodeLoop struct {
+	Type      NodeType
+	Condition NodeCommand
+	Body      NodeCommand
+}
+
+func (n NodeLoop) NodeType() NodeType { return n.Type }
+func (n NodeLoop) Eval(scp *variables.Scope) ExitStatus {
+	var runBody bool
+	returnExit := ExitSuccess
+
+	for {
+		condExit := n.Condition.Eval(scp)
+		if n.Type == NWhile {
+			runBody = condExit == ExitSuccess
+		} else { // Until
+			runBody = condExit != ExitSuccess
+		}
+
+		if runBody {
+			returnExit = n.Body.Eval(scp)
+		} else {
+			break
+		}
+	}
+
+	return returnExit
+}
+
 // NodeIf is the structure that is used for 'if', 'elif' and 'else'
 // as an 'if' or 'elif' Condition is required and Else is optionally nil to
 // indicate the end of the if chain.
 // as an 'else' Condition is required to be nil.
 type NodeIf struct {
-	Condition NodeCommand
-	Else      NodeIf
+	Condition *NodeCommand
+	Else      *NodeIf
 	Body      NodeCommand
 }
 
@@ -91,7 +120,7 @@ type NodeCommand struct {
 func (n NodeCommand) NodeType() NodeType { return NCommand }
 func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	// A line with only assignments applies them to the Root Scope
-	// We check this first to avoid unnecessary scope Push/Pop 's
+	// We check this first to avoid unnecessary scope Push/Pop's
 	if len(n.Args) == 0 {
 		for _, assign := range n.Assign {
 			scp.SetString(assign)
@@ -117,12 +146,8 @@ func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	logex.Debug("=======ENV===============\n")
 	logex.Pretty(env)
-	logex.Debug("=======RUN===============\n")
 	es := cmd.Run()
-	// TODO: Real Error Codes
-	logex.Debug("=========================\n")
 	if es != nil {
 		return ExitFailure
 	}

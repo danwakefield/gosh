@@ -8,13 +8,11 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	p := NewParser("A=1 B=2 echo 'foo'")
+	p := NewParser(`if true then
+	echo 'foo'
+	fi`)
 
 	n := p.Parse()
-
-	if n.NodeType() != NCommand {
-		t.Errorf("Parse should have returned a NodeCommand")
-	}
 
 	s := variables.NewScope()
 	nc := n.Eval(s)

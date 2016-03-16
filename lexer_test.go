@@ -34,9 +34,10 @@ func TestLex(t *testing.T) {
 			},
 		},
 		{
-			"'foo''bar'baz", // both dash and bash concat words despite string boundaries
+			// both dash and bash concat words despite string boundaries
+			"'foo'\"bar\"baz",
 			[]LexItem{
-				LexItem{Tok: TWord, Pos: 0, LineNo: 1, Val: "foobarbaz"},
+				LexItem{Tok: TWord, Pos: 0, LineNo: 1, Val: "foobarbaz", Quoted: true},
 				LexItem{Tok: TEOF, Pos: 13, LineNo: 1},
 			},
 		},
@@ -50,7 +51,7 @@ func TestLex(t *testing.T) {
 		{
 			"foo='blah'",
 			[]LexItem{
-				LexItem{Tok: TWord, Pos: 0, LineNo: 1, Val: "foo=blah"},
+				LexItem{Tok: TWord, Pos: 0, LineNo: 1, Val: "foo=blah", Quoted: true},
 				LexItem{Tok: TEOF, Pos: 10, LineNo: 1},
 			},
 		},
