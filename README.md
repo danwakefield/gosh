@@ -1,4 +1,4 @@
 # gosh
-Go Shell. Final year project aiming to be compatible with Bash 
+Go Shell. Final year project at Aberystwyth University.
+The aim of GOSH is to create a POSIX compliant shell runtime using a modern type safe language
 
-Using a [gb](http://getgb.io) based workflow.
