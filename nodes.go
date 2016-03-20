@@ -18,7 +18,6 @@ const (
 )
 
 type Node interface {
-	NodeType() NodeType
 	Eval(*variables.Scope) ExitStatus
 }
 
@@ -46,12 +45,12 @@ const (
 	NNot
 )
 
-type CommandArg struct {
+type Arg struct {
 	Raw string
 }
 
-func (c CommandArg) Expand(scp *variables.Scope) string {
-	return c.Raw
+func (a Arg) Expand(scp *variables.Scope) string {
+	return a.Raw
 }
 
 type NodeLoop struct {
@@ -60,7 +59,6 @@ type NodeLoop struct {
 	Body      NodeCommand
 }
 
-func (n NodeLoop) NodeType() NodeType { return n.Type }
 func (n NodeLoop) Eval(scp *variables.Scope) ExitStatus {
 	var runBody bool
 	returnExit := ExitSuccess
@@ -83,6 +81,24 @@ func (n NodeLoop) Eval(scp *variables.Scope) ExitStatus {
 	return returnExit
 }
 
+type NodeFor struct {
+	LoopVar string
+	Args    []Arg
+	Body    NodeCommand
+}
+
+func (n NodeFor) Eval(scp *variables.Scope) ExitStatus {
+	expandedArgs := make([]string, len(n.Args))
+	for i, arg := range n.Args {
+		expandedArgs[i] = arg.Expand(scp)
+	}
+
+	for _, arg := range expandedArgs {
+		scp.Set(n.LoopVar, arg)
+		n.Body.Eval(scp)
+	}
+}
+
 // NodeIf is the structure that is used for 'if', 'elif' and 'else'
 // as an 'if' or 'elif' Condition is required and Else is optionally nil to
 // indicate the end of the if chain.
@@ -93,7 +109,6 @@ type NodeIf struct {
 	Body      NodeCommand
 }
 
-func (n NodeIf) NodeType() NodeType { return NIf }
 func (n NodeIf) Eval(scp *variables.Scope) ExitStatus {
 	if n.Condition == nil {
 		return n.Body.Eval(scp)
@@ -113,11 +128,10 @@ func (n NodeIf) Eval(scp *variables.Scope) ExitStatus {
 
 type NodeCommand struct {
 	Assign []string
-	Args   []CommandArg
+	Args   []Arg
 	LineNo int
 }
 
-func (n NodeCommand) NodeType() NodeType { return NCommand }
 func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	// A line with only assignments applies them to the Root Scope
 	// We check this first to avoid unnecessary scope Push/Pop's
@@ -146,24 +160,27 @@ func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	logex.Info("========ENV======")
 	logex.Pretty(env)
+	logex.Info("========CMD======")
 	es := cmd.Run()
+	logex.Info("=======EXIT======")
 	if es != nil {
 		return ExitFailure
+		logex.Info("> Fail")
 	}
+	logex.Info("> Success")
 	return ExitSuccess
 }
 
 type NodeEOF struct{}
 
-func (n NodeEOF) NodeType() NodeType               { return NEOF }
 func (n NodeEOF) Eval(*variables.Scope) ExitStatus { return ExitSuccess }
 
 type NodeNegate struct {
 	N Node
 }
 
-func (n NodeNegate) NodeType() NodeType { return NNot }
 func (n NodeNegate) Eval(scp *variables.Scope) ExitStatus {
 	es := n.N.Eval(scp)
 	// Any Non-zero ExitStatus is a failure so we only check for success
@@ -178,5 +195,4 @@ type NodePipe struct {
 	Commands   []NodeCommand
 }
 
-func (n NodePipe) NodeType() NodeType                   { return NPipe }
 func (n NodePipe) Eval(scp *variables.Scope) ExitStatus { return ExitFailure }

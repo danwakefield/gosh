@@ -9,27 +9,9 @@ import (
 )
 
 const (
-	EOFRune             rune = -1
-	SentinalEscape      rune = 201
-	SentinalVariable    rune = 202
-	SentinalEndVariable rune = 203
-	SentinalBackquote   rune = 204
-	SentinalArith       rune = 206
-	SentinalEndArith    rune = 207
-	SentinalQuote       rune = 210
-
-	VarSubCheckNull rune = (iota + 1)
-	VarSubNormal
-	VarSubMinus
-	VarSubPlus
-	VarSubQuestion
-	VarSubAssign
-	VarSubTrimRight
-	VarSubTrimRightMax
-	VarSubTrimLeft
-	VarSubTrimLeftMax
-	VarSubLength
-	VarSubSeperator
+	EOFRune              rune = -1
+	SentinalEscape       rune = 201
+	SentinalSubstitution rune = 202
 )
 
 var (
@@ -44,6 +26,7 @@ type LexItem struct {
 	LineNo int
 	Val    string
 	Quoted bool
+	Subs   []Substitution
 }
 
 type Lexer struct {
@@ -58,6 +41,7 @@ type Lexer struct {
 	buf                bytes.Buffer
 	backslash          bool
 	quoted             bool
+	subs               []Substitution
 	variableReturnFunc StateFn
 
 	CheckNewline bool
@@ -70,6 +54,7 @@ func NewLexer(input string) *Lexer {
 		input:        input,
 		inputLen:     len(input),
 		itemChan:     make(chan LexItem),
+		subs:         []Substitution{},
 		lineNo:       1,
 		CheckNewline: false,
 		CheckAlias:   true,
@@ -86,9 +71,11 @@ func (l *Lexer) emit(t Token) {
 		LineNo: l.lineNo,
 		Val:    l.buf.String(),
 		Quoted: l.quoted,
+		Subs:   l.subs,
 	}
 	l.lastPos = l.pos
 	l.quoted = false
+	l.subs = []Substitution{}
 	l.buf.Reset()
 }
 
@@ -233,17 +220,17 @@ func lexSubstitution(l *Lexer) StateFn {
 }
 
 func lexVariableSimple(l *Lexer) StateFn {
-	l.buf.WriteRune(SentinalVariable)
-	l.buf.WriteRune(VarSubNormal)
-	defer l.buf.WriteRune(SentinalEndVariable)
+	l.buf.WriteRune(SentinalSubstitution)
+	sv := SubVariable{SubType: VarSubNormal}
+	varbuf := bytes.Buffer{}
 
 	c := l.next()
 	switch {
 	case char.IsSpecial(c):
-		l.buf.WriteRune(c)
+		varbuf.WriteRune(c)
 	case char.IsDigit(c):
 		for {
-			l.buf.WriteRune(c)
+			varbuf.WriteRune(c)
 			c = l.next()
 			if !char.IsDigit(c) {
 				l.backup()
@@ -252,7 +239,7 @@ func lexVariableSimple(l *Lexer) StateFn {
 		}
 	case char.IsFirstInVarName(c):
 		for {
-			l.buf.WriteRune(c)
+			varbuf.WriteRune(c)
 			c = l.next()
 			if !char.IsInVarName(c) {
 				l.backup()
@@ -263,6 +250,8 @@ func lexVariableSimple(l *Lexer) StateFn {
 		l.backup()
 	}
 
+	sv.VarName = varbuf.String()
+	l.subs = append(l.subs, sv)
 	return l.variableReturnFunc
 }
 func lexVariableComplex(l *Lexer) StateFn {

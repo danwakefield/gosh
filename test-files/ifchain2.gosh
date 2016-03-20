@@ -1,0 +1,7 @@
+if false then
+	echo 'FIRST'
+elif false then
+	echo 'SECOND'
+else
+	echo 'THIRD'
+fi

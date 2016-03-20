@@ -26,13 +26,13 @@ func (p *Parser) next() LexItem {
 	if p.pushBack {
 		p.pushBack = false
 		logex.Debugf("Token [Re]read:")
-		logex.Struct(p.lastLexItem)
+		// logex.Struct(p.lastLexItem)
 		return p.lastLexItem
 	}
 	li := p.y.NextLexItem()
 	p.lastLexItem = li
 	logex.Debugf("Token read:")
-	logex.Struct(p.lastLexItem)
+	// logex.Struct(p.lastLexItem)
 	if p.SkipNewlines && li.Tok == TNewLine {
 		logex.Debug("Abandon Newline")
 		return p.next()
@@ -162,14 +162,17 @@ func (p *Parser) command() Node {
 			n.Type = NUntil
 		}
 
+		p.SkipNewlines = true
 		n.Condition = p.simpleCommand() //TODO: list(0)
 		p.expect(TDo)
 		n.Body = p.simpleCommand() //TODO: list(0)
 		p.expect(TDone)
 
+		p.SkipNewlines = false
 		returnNode = n
 	case TBegin:
 		returnNode = p.simpleCommand() //TODO: list(0)
+		p.expect(TEnd)
 	case TWord:
 		p.backup()
 		returnNode = p.simpleCommand()
@@ -182,7 +185,7 @@ func (p *Parser) simpleCommand() NodeCommand {
 	logex.Debugf("Enter\n")
 	tok := p.next()
 	assignments := []string{}
-	args := []CommandArg{}
+	args := []Arg{}
 	startLine := tok.LineNo
 	assignmentAllowed := true
 
@@ -194,7 +197,7 @@ OuterLoop:
 				assignments = append(assignments, tok.Val)
 			} else {
 				assignmentAllowed = false
-				args = append(args, CommandArg{Raw: tok.Val})
+				args = append(args, Arg{Raw: tok.Val})
 			}
 		default:
 			p.backup()
