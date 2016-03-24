@@ -10,7 +10,7 @@ import (
 
 func TestTokenIsBinaryOp(t *testing.T) {
 	cases := []struct {
-		in   A.ArithToken
+		in   A.Token
 		want bool
 	}{
 		{A.ArithLessEqual, true},
@@ -33,7 +33,7 @@ func TestTokenIsBinaryOp(t *testing.T) {
 
 func TestTokenIsAssignmentOp(t *testing.T) {
 	cases := []struct {
-		in   A.ArithToken
+		in   A.Token
 		want bool
 	}{
 		{A.ArithAssignBinaryAnd, true},
@@ -51,9 +51,9 @@ func TestTokenIsAssignmentOp(t *testing.T) {
 	}
 }
 
-func TestArithTokenString(t *testing.T) {
+func TestTokenString(t *testing.T) {
 	cases := []struct {
-		in   A.ArithToken
+		in   A.Token
 		want string
 	}{
 		{A.ArithVariable, "ArithVariable"},
@@ -70,10 +70,10 @@ func TestArithTokenString(t *testing.T) {
 	}
 }
 
-func TestArithTokenAssignDiff(t *testing.T) {
+func TestTokenAssignDiff(t *testing.T) {
 	cases := []struct {
-		in   A.ArithToken
-		want A.ArithToken
+		in   A.Token
+		want A.Token
 	}{
 		{A.ArithBinaryAnd, A.ArithAssignBinaryAnd},
 		{A.ArithAdd, A.ArithAssignAdd},
@@ -88,10 +88,10 @@ func TestArithTokenAssignDiff(t *testing.T) {
 	}
 }
 
-func TestArithLexer(t *testing.T) {
+func TestLexer(t *testing.T) {
 	cases := []struct {
 		in      string
-		wantTok A.ArithToken
+		wantTok A.Token
 		wantVal interface{}
 	}{
 		{"_abcd", A.ArithVariable, "_abcd"},
@@ -140,7 +140,7 @@ func TestArithLexer(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		y := A.NewArithLexer(c.in)
+		y := A.NewLexer(c.in)
 		gotTok, gotVal := y.Lex()
 		if c.wantTok != gotTok {
 			t.Errorf("'%s' should produce the token \n%s\n not\n%s", c.in, c.wantTok, gotTok)
@@ -151,10 +151,10 @@ func TestArithLexer(t *testing.T) {
 	}
 }
 
-func TestArithLexerErrors(t *testing.T) {
+func TestLexerErrors(t *testing.T) {
 	cases := []struct {
 		in      string
-		wantTok A.ArithToken
+		wantTok A.Token
 		wantVal interface{}
 	}{
 		{"555a", A.ArithError, A.LexError{X: "555a", Err: A.ErrDecimalConstant}},
@@ -163,7 +163,7 @@ func TestArithLexerErrors(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		y := A.NewArithLexer(c.in)
+		y := A.NewLexer(c.in)
 		gotTok, gotVal := y.Lex()
 		if c.wantTok != gotTok {
 			t.Errorf("'%s' should produce the token \n%s\n not\n%s", c.in, c.wantTok, gotTok)
@@ -176,9 +176,9 @@ func TestArithLexerErrors(t *testing.T) {
 
 }
 
-func TestArithLexerComplex(t *testing.T) {
+func TestLexerComplex(t *testing.T) {
 	type lexPair struct {
-		Tok A.ArithToken
+		Tok A.Token
 		Val interface{}
 	}
 	type complexTestCase struct {
@@ -214,7 +214,7 @@ func TestArithLexerComplex(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		y := A.NewArithLexer(c.in)
+		y := A.NewLexer(c.in)
 		for pairCount, want := range c.want {
 			gotTok, gotVal := y.Lex()
 			if want.Tok != gotTok {

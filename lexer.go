@@ -5,6 +5,8 @@ import (
 	"errors"
 	"unicode/utf8"
 
+	"gopkg.in/logex.v1"
+
 	"github.com/danwakefield/gosh/char"
 )
 
@@ -30,19 +32,19 @@ type LexItem struct {
 }
 
 type Lexer struct {
-	input              string
-	inputLen           int
-	lineNo             int
-	lastPos            int
-	pos                int
-	backupWidth        int
-	state              StateFn
-	itemChan           chan LexItem
-	buf                bytes.Buffer
-	backslash          bool
-	quoted             bool
-	subs               []Substitution
-	variableReturnFunc StateFn
+	input         string
+	inputLen      int
+	lineNo        int
+	lastPos       int
+	pos           int
+	backupWidth   int
+	state         StateFn
+	itemChan      chan LexItem
+	buf           bytes.Buffer
+	backslash     bool
+	quoted        bool
+	subs          []Substitution
+	subReturnFunc StateFn
 
 	CheckNewline bool
 	CheckAlias   bool
@@ -196,6 +198,52 @@ func lexStart(l *Lexer) StateFn {
 	}
 }
 
+func lexWord(l *Lexer) StateFn {
+
+OuterLoop:
+	for {
+		c := l.next()
+
+		if l.backslash {
+			if c == EOFRune {
+				l.backup()
+				l.buf.WriteRune('\\')
+				break
+			}
+			if c == '\\' {
+				l.buf.WriteRune('\\')
+				continue
+			}
+			l.buf.WriteRune(SentinalEscape)
+			l.buf.WriteRune(c)
+			l.backslash = false
+			continue
+		}
+
+		switch c {
+		case '\n', ' ', EOFRune:
+			l.backup()
+			break OuterLoop
+		case '\'':
+			l.quoted = true
+			return lexSingleQuote
+		case '"':
+			l.quoted = true
+			return lexDoubleQuote
+		case '`':
+			return lexBackQuote
+		case '$':
+			l.subReturnFunc = lexWord
+			return lexSubstitution
+		default:
+			l.buf.WriteRune(c)
+		}
+	}
+
+	l.emit(TWord)
+	return lexStart
+}
+
 func lexSubstitution(l *Lexer) StateFn {
 	// Upon entering we have only read the '$'
 	c := l.next()
@@ -218,11 +266,18 @@ func lexSubstitution(l *Lexer) StateFn {
 	}
 	return nil
 }
-
 func lexVariableSimple(l *Lexer) StateFn {
+	// When we enter this state we know we have at least one readable
+	// char for the varname. That means that any character not valid
+	// in the varname just terminates the parsing and we dont have to
+	// worry about the case of an empty varname
 	l.buf.WriteRune(SentinalSubstitution)
 	sv := SubVariable{SubType: VarSubNormal}
 	varbuf := bytes.Buffer{}
+	defer func() {
+		sv.VarName = varbuf.String()
+		l.subs = append(l.subs, sv)
+	}()
 
 	c := l.next()
 	switch {
@@ -250,31 +305,31 @@ func lexVariableSimple(l *Lexer) StateFn {
 		l.backup()
 	}
 
-	sv.VarName = varbuf.String()
-	l.subs = append(l.subs, sv)
-	return l.variableReturnFunc
+	return l.subReturnFunc
 }
 func lexVariableComplex(l *Lexer) StateFn {
 	// Upon entering we have read the opening '{'
-	l.buf.WriteRune(SentinalVariable)
-	defer l.buf.WriteRune(SentinalEndVariable)
-	varSubSentinal := rune(0)
+	l.buf.WriteRune(SentinalSubstitution)
+	sv := SubVariable{}
+	varbuf := bytes.Buffer{}
+	defer func() {
+		sv.VarName = varbuf.String()
+		l.subs = append(l.subs, sv)
+	}()
 
 	c := l.next()
 	if c == '#' {
 		// The NParam Special Var
 		if l.hasNext('}') {
-			l.buf.WriteRune(VarSubNormal)
-			l.buf.WriteRune('#')
-			return l.variableReturnFunc
+			varbuf.WriteRune('#')
+			return l.subReturnFunc
 		}
 
 		// Length variable operator
-		varSubSentinal = VarSubLength
+		sv.SubType = VarSubLength
 		c = l.next()
 	}
 
-	varbuf := bytes.Buffer{}
 	switch {
 	case char.IsSpecial(c):
 		varbuf.WriteRune(c)
@@ -298,23 +353,64 @@ func lexVariableComplex(l *Lexer) StateFn {
 		}
 	case c == EOFRune:
 		l.backup()
-		return l.variableReturnFunc
+		return l.subReturnFunc
 	}
 
 	if l.hasNext('}') {
-		if varSubSentinal != rune(0) {
-			varbuf.WriteRune(varSubSentinal)
-		} else {
-			varbuf.WriteRune(VarSubNormal)
-		}
-		l.buf.Write(varbuf.Bytes())
-		return l.variableReturnFunc
+		return l.subReturnFunc
 	}
 
-	// We have to check for operators
-	c = l.next()
+	// Length operator should have returned since only ${#varname} is valid
+	if sv.SubType == VarSubLength {
+		logex.Panic("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos])
+	}
 
-	panic("Bad substitution")
+	if l.hasNext(':') {
+		sv.CheckNull = true
+		c = l.next()
+	}
+
+	switch c {
+	case '-':
+		sv.SubType = VarSubMinus
+	case '+':
+		sv.SubType = VarSubPlus
+	case '?':
+		sv.SubType = VarSubQuestion
+	case '=':
+		sv.SubType = VarSubAssign
+	case '#':
+		if l.hasNext('#') {
+			sv.SubType = VarSubTrimLeftMax
+		} else {
+			sv.SubType = VarSubTrimLeft
+		}
+	case '%':
+		if l.hasNext('%') {
+			sv.SubType = VarSubTrimRightMax
+		} else {
+			sv.SubType = VarSubTrimRight
+		}
+	default:
+		logex.Panic("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos])
+	}
+
+	// Read until '}'
+	// In the future to support Nested vars etc create new sublexer from
+	// l.input[l.pos:] and take the first lexitem as the sub val then adjust
+	// this lexer's position and trash sublexer
+	c = l.next()
+	subValBuf := bytes.Buffer{}
+	for {
+		if c == '}' {
+			break
+		}
+		subValBuf.WriteRune(c)
+		c = l.next()
+	}
+	sv.SubVal = subValBuf.String()
+
+	return l.subReturnFunc
 
 }
 func lexBackQuote(l *Lexer) StateFn {
@@ -324,53 +420,40 @@ func lexSubshell(l *Lexer) StateFn {
 	return nil
 }
 func lexArith(l *Lexer) StateFn {
-	return nil
-}
-func lexWord(l *Lexer) StateFn {
+	// Upon entering this state we have read the '$(('
+	l.buf.WriteRune(SentinalSubstitution)
+	arithBuf := bytes.Buffer{}
+	parenCount := 0
+	sa := SubArith{}
+	defer func() {
+		sa.Raw = arithBuf.String()
+		l.subs = append(l.subs, sa)
+	}()
 
-OuterLoop:
 	for {
 		c := l.next()
-
-		if l.backslash {
-			if c == EOFRune {
-				l.backup()
-				l.buf.WriteRune('\\')
+		if parenCount == 0 && c == ')' {
+			if l.hasNext(')') {
 				break
 			}
-			l.buf.WriteRune(SentinalEscape)
-			l.buf.WriteRune(c)
-			l.backslash = false
-			continue
+			// Bash just ignores a closing brakcet with no opening
+			// bracket so we will emulate that.
+			c = l.next()
 		}
-
-		switch c {
-		case '\n', ' ', EOFRune:
-			l.backup()
-			break OuterLoop
-		case '\'':
-			l.quoted = true
-			return lexSingleQuote
-		case '"':
-			l.quoted = true
-			return lexDoubleQuote
-		case '`':
-			return lexBackQuote
-		case '$':
-			l.variableReturnFunc = lexWord
-			return lexSubstitution
-		default:
-			l.buf.WriteRune(c)
+		if c == '(' {
+			parenCount++
 		}
+		if c == ')' {
+			parenCount--
+		}
+		arithBuf.WriteRune(c)
 	}
 
-	l.emit(TWord)
-	return lexStart
+	return l.subReturnFunc
 }
 
 func lexDoubleQuote(l *Lexer) StateFn {
-	// l.buf.WriteRune(SentinalQuote)
-	// defer l.buf.WriteRune(SentinalQuote)
+	// We have consumed the first quote before entering this state.
 	for {
 		c := l.next()
 
@@ -388,10 +471,7 @@ func lexDoubleQuote(l *Lexer) StateFn {
 }
 
 func lexSingleQuote(l *Lexer) StateFn {
-	// l.buf.WriteRune(SentinalQuote)
-	// defer l.buf.WriteRune(SentinalQuote)
-	// We have consumed the first single quote before entering
-	// this state.
+	// We have consumed the first quote before entering this state.
 	for {
 		c := l.next()
 

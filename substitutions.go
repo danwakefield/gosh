@@ -3,6 +3,9 @@ package main
 import (
 	"strconv"
 
+	"gopkg.in/logex.v1"
+
+	"github.com/danwakefield/gosh/arith"
 	"github.com/danwakefield/gosh/variables"
 )
 
@@ -52,7 +55,7 @@ func (s SubVariable) Sub(scp *variables.Scope) string {
 		return strconv.Itoa(len(v.Val))
 	}
 
-	varExists := v.Set == True
+	varExists := v.Set == true
 	// CheckNull means that an empty string is treated as unset
 	if s.CheckNull {
 		varExists = varExists && v.Val != ""
@@ -83,5 +86,22 @@ func (s SubVariable) Sub(scp *variables.Scope) string {
 			ExitShellWithMessage(ExitFailure, s.SubVal)
 		}
 		ExitShellWithMessage(ExitFailure, s.VarName+": Parameter not set")
+	case VarSubTrimRight, VarSubTrimRightMax, VarSubTrimLeft, VarSubTrimLeftMax:
+		logex.Panic("Trim operations not implemented")
 	}
+
+	logex.Panic("Not Reached")
+	return ""
+}
+
+type SubArith struct {
+	Raw string
+}
+
+func (s SubArith) Sub(scp *variables.Scope) string {
+	i, err := arith.Parse(s.Raw, scp)
+	if err != nil {
+		panic(err)
+	}
+	return strconv.FormatInt(i, 10)
 }

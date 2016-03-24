@@ -1,4 +1,4 @@
-//go:generate stringer -type=ArithToken
+//go:generate stringer -type=Token
 package arith
 
 import (
@@ -24,23 +24,23 @@ func (le LexError) Error() string {
 	return "Error parsing '" + le.X + "' :" + le.Err.Error()
 }
 
-// ArithLexer ...
-type ArithLexer struct {
+// Lexer ...
+type Lexer struct {
 	input         string
 	pos           int
 	inputLen      int
 	lastRuneWidth int
 }
 
-func NewArithLexer(s string) *ArithLexer {
-	return &ArithLexer{
+func NewLexer(s string) *Lexer {
+	return &Lexer{
 		input:    s,
 		inputLen: len(s),
 	}
 }
 
 // next returns the next available rune from the input string.
-func (al *ArithLexer) next() rune {
+func (al *Lexer) next() rune {
 	if al.pos >= al.inputLen {
 		al.lastRuneWidth = 0
 		return EOFRune
@@ -52,14 +52,14 @@ func (al *ArithLexer) next() rune {
 }
 
 // backup reverses a call to next idempotently
-func (al *ArithLexer) backup() {
+func (al *Lexer) backup() {
 	al.pos -= al.lastRuneWidth
 	al.lastRuneWidth = 0
 }
 
 // peek returns the next rune from the input
 // state of the lexer is preserved
-func (al *ArithLexer) peek() rune {
+func (al *Lexer) peek() rune {
 	lrw := al.lastRuneWidth
 	r := al.next()
 	al.backup()
@@ -67,7 +67,7 @@ func (al *ArithLexer) peek() rune {
 	return r
 }
 
-func (al *ArithLexer) hasNext(r rune) bool {
+func (al *Lexer) hasNext(r rune) bool {
 	if r == al.next() {
 		return true
 	}
@@ -77,7 +77,7 @@ func (al *ArithLexer) hasNext(r rune) bool {
 
 // hasNextFunc uses the supplied func to check the validity of the next
 // character from the input
-func (al *ArithLexer) hasNextFunc(fn func(rune) bool) bool {
+func (al *Lexer) hasNextFunc(fn func(rune) bool) bool {
 	if fn(al.next()) {
 		return true
 	}
@@ -85,15 +85,15 @@ func (al *ArithLexer) hasNextFunc(fn func(rune) bool) bool {
 	return false
 }
 
-// Lex returns the next ArithToken in the input string and an interface value.
-// The interface will also contain a value dependant on the ArithToken
-// If ArithToken == ArithNumber then interface will be an int64
-// If ArithToken == ArithVariable then interface will be a string
+// Lex returns the next Token in the input string and an interface value.
+// The interface will also contain a value dependant on the Token
+// If Token == ArithNumber then interface will be an int64
+// If Token == ArithVariable then interface will be a string
 //
 // In the future it may be possible that
-// If ArithToken == ArithError then interface will be an error
-func (al *ArithLexer) Lex() (ArithToken, interface{}) {
-	var t ArithToken
+// If Token == ArithError then interface will be an error
+func (al *Lexer) Lex() (Token, interface{}) {
+	var t Token
 	var checkAssignmentOp bool
 	var startPos, endPos int
 

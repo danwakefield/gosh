@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"strings"
 
 	"gopkg.in/logex.v1"
 
@@ -17,44 +18,37 @@ const (
 	ExitUnknownCommand ExitStatus = 127
 )
 
+type Arg struct {
+	Raw  string
+	Subs []Substitution
+}
+
+func (a Arg) Expand(scp *variables.Scope) string {
+	if strings.IndexRune(a.Raw, SentinalSubstitution) == -1 {
+		return a.Raw
+	}
+	logex.Panic("Substitutions not implemented")
+	return ""
+}
+
 type Node interface {
 	Eval(*variables.Scope) ExitStatus
 }
 
-type NodeType int
+type NodeList []Node
 
-const (
-	NEOF NodeType = iota
-	NCommand
-	NPipe
-	NRedirection
-	NBackground
-	NSubshell
-	NAnd
-	NOr
-	NSemicolon
-	NIf
-	NWhile
-	NUntil
-	NFor
-	NCase
-	NFunction
-	NRedirTo
-	NRedirAppend
-	NRedirClobber
-	NNot
-)
+func (n NodeList) Eval(scp *variables.Scope) ExitStatus {
+	returnExit := ExitSuccess
 
-type Arg struct {
-	Raw string
-}
+	for _, x := range n {
+		returnExit = x.Eval(scp)
+	}
 
-func (a Arg) Expand(scp *variables.Scope) string {
-	return a.Raw
+	return returnExit
 }
 
 type NodeLoop struct {
-	Type      NodeType
+	IsWhile   bool
 	Condition NodeCommand
 	Body      NodeCommand
 }
@@ -65,7 +59,7 @@ func (n NodeLoop) Eval(scp *variables.Scope) ExitStatus {
 
 	for {
 		condExit := n.Condition.Eval(scp)
-		if n.Type == NWhile {
+		if n.IsWhile {
 			runBody = condExit == ExitSuccess
 		} else { // Until
 			runBody = condExit != ExitSuccess
@@ -88,6 +82,8 @@ type NodeFor struct {
 }
 
 func (n NodeFor) Eval(scp *variables.Scope) ExitStatus {
+	returnExit := ExitSuccess
+
 	expandedArgs := make([]string, len(n.Args))
 	for i, arg := range n.Args {
 		expandedArgs[i] = arg.Expand(scp)
@@ -95,8 +91,10 @@ func (n NodeFor) Eval(scp *variables.Scope) ExitStatus {
 
 	for _, arg := range expandedArgs {
 		scp.Set(n.LoopVar, arg)
-		n.Body.Eval(scp)
+		returnExit = n.Body.Eval(scp)
 	}
+
+	return returnExit
 }
 
 // NodeIf is the structure that is used for 'if', 'elif' and 'else'
@@ -163,14 +161,19 @@ func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	logex.Info("========ENV======")
 	logex.Pretty(env)
 	logex.Info("========CMD======")
-	es := cmd.Run()
+	err := cmd.Run()
 	logex.Info("=======EXIT======")
-	if es != nil {
-		return ExitFailure
-		logex.Info("> Fail")
+	if err == nil {
+		logex.Info("> Success")
+		return ExitSuccess
 	}
-	logex.Info("> Success")
-	return ExitSuccess
+	if err == exec.ErrNotFound {
+		logex.Info("> Unknown Command")
+		return ExitUnknownCommand
+	}
+	logex.Info("> Failure")
+	return ExitFailure
+
 }
 
 type NodeEOF struct{}
@@ -192,7 +195,11 @@ func (n NodeNegate) Eval(scp *variables.Scope) ExitStatus {
 
 type NodePipe struct {
 	Background bool
-	Commands   []NodeCommand
+	Commands   NodeList
 }
 
-func (n NodePipe) Eval(scp *variables.Scope) ExitStatus { return ExitFailure }
+func (n NodePipe) Eval(scp *variables.Scope) ExitStatus {
+	returnExit := ExitSuccess
+
+	return returnExit
+}

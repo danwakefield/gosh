@@ -1,12 +1,12 @@
-//go:generate stringer -type=ArithToken
+//go:generate stringer -type=Token
 package arith
 
-type ArithToken int
+type Token int
 
 const (
 	EOFRune = -1
 
-	ArithError ArithToken = iota
+	ArithError Token = iota
 	ArithAssignment
 	ArithNot
 	ArithAnd
@@ -57,5 +57,5 @@ const (
 	ArithEOF
 
 	// ArithAssignDiff is used to turn an Arith token into its ArithAssign equivalent.
-	ArithAssignDiff ArithToken = ArithAssignBinaryAnd - ArithBinaryAnd
+	ArithAssignDiff Token = ArithAssignBinaryAnd - ArithBinaryAnd
 )

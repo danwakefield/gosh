@@ -31,7 +31,7 @@ func (p *Parser) next() LexItem {
 	}
 	li := p.y.NextLexItem()
 	p.lastLexItem = li
-	logex.Debugf("Token read:")
+	logex.Debugf("Token  read:")
 	// logex.Struct(p.lastLexItem)
 	if p.SkipNewlines && li.Tok == TNewLine {
 		logex.Debug("Abandon Newline")
@@ -101,6 +101,9 @@ func (p *Parser) pipeline() Node {
 	}
 
 	returnNode := p.command()
+	if p.hasNextToken(TPipe) {
+		// Parse Pipes
+	}
 
 	if negate {
 		return NodeNegate{N: returnNode}
@@ -157,9 +160,8 @@ func (p *Parser) command() Node {
 		returnNode = *ifHead
 	case TWhile, TUntil:
 		n := NodeLoop{}
-		n.Type = NWhile // While is more common
-		if tok.Tok == TUntil {
-			n.Type = NUntil
+		if tok.Tok == TWhile {
+			n.IsWhile = true
 		}
 
 		p.SkipNewlines = true
@@ -197,7 +199,7 @@ OuterLoop:
 				assignments = append(assignments, tok.Val)
 			} else {
 				assignmentAllowed = false
-				args = append(args, Arg{Raw: tok.Val})
+				args = append(args, Arg{Raw: tok.Val, Subs: tok.Subs})
 			}
 		default:
 			p.backup()
