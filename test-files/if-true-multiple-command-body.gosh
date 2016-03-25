@@ -1,0 +1,5 @@
+if true; then
+    echo 'foobar'
+    echo 'foobar'
+    echo 'foobar'
+fi

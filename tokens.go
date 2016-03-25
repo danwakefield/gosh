@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	EndListTokens = map[Token]bool{
+	TokenEndsList = map[Token]bool{
 		TEOF:          true,
 		TRightParen:   true,
 		TEndCase:      true,

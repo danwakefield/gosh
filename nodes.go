@@ -15,6 +15,7 @@ type ExitStatus int
 const (
 	ExitSuccess        ExitStatus = 0
 	ExitFailure        ExitStatus = 1
+	ExitNotExecutable  ExitStatus = 126
 	ExitUnknownCommand ExitStatus = 127
 )
 
@@ -35,8 +36,18 @@ type Node interface {
 	Eval(*variables.Scope) ExitStatus
 }
 
+// NodeEOF is end of file sentinal node.
+type NodeEOF struct{}
+
+// Eval is required to fufill the Node interface but the return value in this
+// case is useless. NodeEOF should be checked for seperately to terminate
+// execution.
+func (NodeEOF) Eval(*variables.Scope) ExitStatus { return ExitSuccess }
+
 type NodeList []Node
 
+// Eval calls Eval on the Nodes contained in the list and returns the
+// ExitStatus of the last command.
 func (n NodeList) Eval(scp *variables.Scope) ExitStatus {
 	returnExit := ExitSuccess
 
@@ -47,10 +58,24 @@ func (n NodeList) Eval(scp *variables.Scope) ExitStatus {
 	return returnExit
 }
 
+// NodeNegate is used to flip the ExitStatus of the contained Node
+type NodeNegate struct {
+	N Node
+}
+
+func (n NodeNegate) Eval(scp *variables.Scope) ExitStatus {
+	ex := n.N.Eval(scp)
+	// Any Non-zero ExitStatus is a failure so we only check for success
+	if ex == ExitSuccess {
+		return ExitFailure
+	}
+	return ExitSuccess
+}
+
 type NodeLoop struct {
 	IsWhile   bool
-	Condition NodeCommand
-	Body      NodeCommand
+	Condition Node
+	Body      Node
 }
 
 func (n NodeLoop) Eval(scp *variables.Scope) ExitStatus {
@@ -86,6 +111,8 @@ func (n NodeFor) Eval(scp *variables.Scope) ExitStatus {
 
 	expandedArgs := make([]string, len(n.Args))
 	for i, arg := range n.Args {
+		// This will need to be changed when IFS splitting is coded.
+		// Append each split as a seperate item
 		expandedArgs[i] = arg.Expand(scp)
 	}
 
@@ -102,9 +129,9 @@ func (n NodeFor) Eval(scp *variables.Scope) ExitStatus {
 // indicate the end of the if chain.
 // as an 'else' Condition is required to be nil.
 type NodeIf struct {
-	Condition *NodeCommand
+	Condition *Node
 	Else      *NodeIf
-	Body      NodeCommand
+	Body      Node
 }
 
 func (n NodeIf) Eval(scp *variables.Scope) ExitStatus {
@@ -112,7 +139,7 @@ func (n NodeIf) Eval(scp *variables.Scope) ExitStatus {
 		return n.Body.Eval(scp)
 	}
 
-	runBody := n.Condition.Eval(scp)
+	runBody := (*n.Condition).Eval(scp)
 	if runBody == ExitSuccess {
 		return n.Body.Eval(scp)
 	}
@@ -152,6 +179,11 @@ func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 		expandedArgs[i] = arg.Expand(scp)
 	}
 
+	/* ===== THIS NEEDS TO BE EXTRACTED ====
+	* This should be the place that we search for builtins,
+	* relative path commands, commands etc.
+	* Will also need to be able to add redirections here somehow.
+	 */
 	env := scp.Environ()
 	cmd := exec.Command(expandedArgs[0], expandedArgs[1:]...)
 	cmd.Env = env
@@ -173,24 +205,7 @@ func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	}
 	logex.Info("> Failure")
 	return ExitFailure
-
-}
-
-type NodeEOF struct{}
-
-func (n NodeEOF) Eval(*variables.Scope) ExitStatus { return ExitSuccess }
-
-type NodeNegate struct {
-	N Node
-}
-
-func (n NodeNegate) Eval(scp *variables.Scope) ExitStatus {
-	es := n.N.Eval(scp)
-	// Any Non-zero ExitStatus is a failure so we only check for success
-	if es == ExitSuccess {
-		return ExitFailure
-	}
-	return ExitSuccess
+	// ===== THIS NEEDS TO BE EXTRACTED ====
 }
 
 type NodePipe struct {

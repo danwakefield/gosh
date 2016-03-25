@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"gopkg.in/logex.v1"
 
 	"github.com/danwakefield/gosh/variables"
@@ -12,8 +10,6 @@ type Parser struct {
 	y           *Lexer
 	lastLexItem LexItem
 	pushBack    bool
-
-	SkipNewlines bool
 }
 
 func NewParser(input string) *Parser {
@@ -25,30 +21,22 @@ func NewParser(input string) *Parser {
 func (p *Parser) next() LexItem {
 	if p.pushBack {
 		p.pushBack = false
-		logex.Debugf("Token [Re]read:")
-		// logex.Struct(p.lastLexItem)
 		return p.lastLexItem
 	}
-	li := p.y.NextLexItem()
-	p.lastLexItem = li
-	logex.Debugf("Token  read:")
-	// logex.Struct(p.lastLexItem)
-	if p.SkipNewlines && li.Tok == TNewLine {
-		logex.Debug("Abandon Newline")
-		return p.next()
-	}
-	return li
+	p.lastLexItem = p.y.NextLexItem()
+
+	return p.lastLexItem
 }
 
 func (p *Parser) expect(expected ...Token) {
 	got := p.next()
 	for _, expect := range expected {
 		if expect == got.Tok {
-			logex.Debugf("Success %s", expect)
+			logex.Debugf("Expect Successful: %s", expect)
 			return
 		}
 	}
-	logex.Fatal("Expected :", expected)
+	logex.Panic("Expected any of: ", expected, "\n got:", got)
 }
 
 func (p *Parser) backup() {
@@ -68,26 +56,69 @@ func (p *Parser) Parse() Node {
 	logex.Debug("Enter\n")
 	defer logex.Debug("Exit\n")
 	tok := p.next()
-	var r Node // Return Node
 
 	switch tok.Tok {
 	case TEOF:
-		r = NodeEOF{}
+		return NodeEOF{}
 	case TNewLine:
-		r = nil
+		// Looks like this is done in dash to allow for interactive shell
+		// use.
+		return nil
 	default:
 		p.backup()
-		r = p.list()
+		return p.list(1)
 	}
-
-	return r
 }
 
-func (p *Parser) list() Node {
-	return p.andOr()
+func (p *Parser) list(newlineFlag int) Node {
+	logex.Debug("Enter\n")
+	defer logex.Debug("Exit\n")
+	nodes := NodeList{}
+
+	p.y.CheckAlias = true
+	p.y.CheckNewline = true
+	p.y.CheckKeyword = true
+	for {
+		n := p.andOr()
+		tok := p.next()
+
+		if tok.Tok == TRedirection {
+			//
+		}
+		nodes = append(nodes, n)
+
+		switch tok.Tok {
+		case TNewLine:
+			if newlineFlag == 1 {
+				return nodes
+			}
+			fallthrough
+		case TBackground, TSemicolon:
+			p.y.CheckAlias = true
+			p.y.CheckNewline = true
+			p.y.CheckKeyword = true
+			tok = p.next()
+			if TokenEndsList[tok.Tok] {
+				p.backup()
+				return nodes
+			}
+			p.backup()
+		case TEOF:
+			p.backup()
+			return nodes
+		default:
+			if newlineFlag == 1 {
+				logex.Panic("Unexpected Token:\n", tok)
+			}
+			p.backup()
+			return nodes
+		}
+	}
 }
 
 func (p *Parser) andOr() Node {
+	logex.Debug("Enter\n")
+	defer logex.Debug("Exit\n")
 	return p.pipeline()
 }
 
@@ -98,12 +129,16 @@ func (p *Parser) pipeline() Node {
 
 	if p.hasNextToken(TNot) {
 		negate = !negate
+		p.y.CheckAlias = true
+		p.y.CheckNewline = false
+		p.y.CheckKeyword = true
 	}
 
 	returnNode := p.command()
-	if p.hasNextToken(TPipe) {
-		// Parse Pipes
-	}
+	// if p.hasNextToken(TPipe)
+	// add commands to the pipeline.
+	// Maybe change Eval signature so we can pass IO redirs through to
+	// NodeCommand.
 
 	if negate {
 		return NodeNegate{N: returnNode}
@@ -119,25 +154,26 @@ func (p *Parser) command() Node {
 
 	switch tok.Tok {
 	default:
-		logex.Fatal(fmt.Sprintf("Command Doesnt understand\n %#v\n Token: %s", tok, tok.Tok))
+		logex.Struct(tok)
+		logex.Fatal("Could not understand ^")
 	case TIf:
 		n := NodeIf{}
 		// We need a copy of the orignal pointer to return as the head of the if chain
 		ifHead := &n
-		p.SkipNewlines = true
-		ifCondition := p.simpleCommand() //TODO: list(0)
+		p.y.CheckNewline = true
+		ifCondition := p.list(0)
 		n.Condition = &ifCondition
 		p.expect(TThen)
-		n.Body = p.simpleCommand() //TODO: list(0)
+		n.Body = p.list(0)
 
 		// Elif's
 		for {
 			if p.hasNextToken(TElif) {
 				nelif := NodeIf{}
-				ifCondition = p.simpleCommand() //TODO: list(0)
+				ifCondition = p.list(0)
 				nelif.Condition = &ifCondition
 				p.expect(TThen)
-				nelif.Body = p.simpleCommand() //TODO: list(0)
+				nelif.Body = p.list(0)
 				n.Else = &nelif
 				n = nelif
 			} else {
@@ -151,12 +187,11 @@ func (p *Parser) command() Node {
 
 		if p.hasNextToken(TElse) {
 			nelse := NodeIf{}
-			nelse.Body = p.simpleCommand()
+			nelse.Body = p.list(0)
 			n.Else = &nelse
 		}
 
 		p.expect(TFi)
-		p.SkipNewlines = false
 		returnNode = *ifHead
 	case TWhile, TUntil:
 		n := NodeLoop{}
@@ -164,16 +199,14 @@ func (p *Parser) command() Node {
 			n.IsWhile = true
 		}
 
-		p.SkipNewlines = true
-		n.Condition = p.simpleCommand() //TODO: list(0)
+		n.Condition = p.list(0)
 		p.expect(TDo)
-		n.Body = p.simpleCommand() //TODO: list(0)
+		n.Body = p.list(0)
 		p.expect(TDone)
 
-		p.SkipNewlines = false
 		returnNode = n
 	case TBegin:
-		returnNode = p.simpleCommand() //TODO: list(0)
+		returnNode = p.list(0)
 		p.expect(TEnd)
 	case TWord:
 		p.backup()
@@ -191,12 +224,17 @@ func (p *Parser) simpleCommand() NodeCommand {
 	startLine := tok.LineNo
 	assignmentAllowed := true
 
+	p.y.CheckAlias = true
+	p.y.CheckNewline = false
+	p.y.CheckKeyword = false
+
 OuterLoop:
 	for {
 		switch tok.Tok {
 		case TWord:
 			if assignmentAllowed && variables.IsAssignment(tok.Val) {
 				assignments = append(assignments, tok.Val)
+				p.y.CheckAlias = false
 			} else {
 				assignmentAllowed = false
 				args = append(args, Arg{Raw: tok.Val, Subs: tok.Subs})

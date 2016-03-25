@@ -116,29 +116,39 @@ func (l *Lexer) ignore() {
 	l.lastPos = l.pos
 }
 
-func (l *Lexer) NextLexItem() LexItem {
-	tok := <-l.itemChan
+func (l *Lexer) NextLexItem() (li LexItem) {
+	defer func() {
+		l.CheckAlias = false
+		l.CheckNewline = false
+		l.CheckKeyword = false
+
+		logex.Struct(li)
+	}()
+	li = <-l.itemChan
 
 	if l.CheckNewline {
-		for tok.Tok == TNewLine {
-			tok = <-l.itemChan
+		for li.Tok == TNewLine {
+			li = <-l.itemChan
 		}
 	}
 
-	if tok.Tok != TWord || tok.Quoted {
-		return tok
+	if li.Tok != TWord || li.Quoted {
+		return li
 	}
 
 	if l.CheckKeyword {
-		t, found := KeywordLookup[tok.Val]
+		t, found := KeywordLookup[li.Val]
 		if found {
-			return LexItem{Tok: t, Pos: tok.Pos, LineNo: tok.LineNo, Val: tok.Val}
+			li = LexItem{Tok: t, Pos: li.Pos, LineNo: li.LineNo, Val: li.Val}
+			return li
 		}
 	}
 
-	// Expand Alias.
+	if l.CheckAlias {
+		// Expand Alias.
+	}
 
-	return tok
+	return li
 }
 
 func lexStart(l *Lexer) StateFn {
@@ -221,7 +231,7 @@ OuterLoop:
 		}
 
 		switch c {
-		case '\n', ' ', EOFRune:
+		case '\n', '\t', ' ', '<', '>', '(', ')', ';', '&', '|', EOFRune:
 			l.backup()
 			break OuterLoop
 		case '\'':

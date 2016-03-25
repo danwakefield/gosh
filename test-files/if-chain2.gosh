@@ -1,6 +1,6 @@
-if false then
+if false; then
 	echo 'FIRST'
-elif false then
+elif false; then
 	echo 'SECOND'
 else
 	echo 'THIRD'
