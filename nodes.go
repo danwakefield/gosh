@@ -24,12 +24,29 @@ type Arg struct {
 	Subs []Substitution
 }
 
-func (a Arg) Expand(scp *variables.Scope) string {
-	if strings.IndexRune(a.Raw, SentinalSubstitution) == -1 {
+func (a Arg) Expand(scp *variables.Scope) (returnString string) {
+	logex.Debugf("Expand '%s'", a.Raw)
+	defer func() {
+		logex.Debugf("Returned '%s'", returnString)
+	}()
+
+	subPosition := strings.IndexRune(a.Raw, SentinalSubstitution)
+	if subPosition == -1 {
 		return a.Raw
 	}
-	logex.Panic("Substitutions not implemented")
-	return ""
+	subCounter := 0
+	s := ""
+	for {
+		// We use SubPosition+2 here as the SentinalSubtitution rune is 2
+		// characters wide.
+		s = a.Raw[:subPosition] + a.Subs[subCounter].Sub(scp) + a.Raw[subPosition+2:]
+		subPosition = strings.IndexRune(s, SentinalSubstitution)
+		if subPosition == -1 {
+			break
+		}
+		subCounter++
+	}
+	return s
 }
 
 type Node interface {
@@ -103,7 +120,7 @@ func (n NodeLoop) Eval(scp *variables.Scope) ExitStatus {
 type NodeFor struct {
 	LoopVar string
 	Args    []Arg
-	Body    NodeCommand
+	Body    NodeList
 }
 
 func (n NodeFor) Eval(scp *variables.Scope) ExitStatus {

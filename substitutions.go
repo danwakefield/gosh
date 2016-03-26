@@ -42,7 +42,12 @@ type SubVariable struct {
 	SubType   VarSubType
 }
 
-func (s SubVariable) Sub(scp *variables.Scope) string {
+func (s SubVariable) Sub(scp *variables.Scope) (returnString string) {
+	logex.Debug("Substituting variable")
+	logex.Struct(s)
+	defer func() {
+		logex.Debugf("Returned '%s'", returnString)
+	}()
 	v := scp.Get(s.VarName)
 
 	switch s.SubType {
@@ -99,6 +104,8 @@ type SubArith struct {
 }
 
 func (s SubArith) Sub(scp *variables.Scope) string {
+	logex.Debug("Subtituting arithmetic")
+	logex.Struct(s)
 	i, err := arith.Parse(s.Raw, scp)
 	if err != nil {
 		panic(err)

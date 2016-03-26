@@ -14,3 +14,16 @@ func IsAssignment(s string) bool {
 	}
 	return false
 }
+
+func IsGoodName(s string) bool {
+	rs := []rune(s)
+	if !char.IsFirstInVarName(rs[0]) {
+		return false
+	}
+	for _, c := range rs[1:] {
+		if !char.IsInVarName(c) {
+			return false
+		}
+	}
+	return true
+}

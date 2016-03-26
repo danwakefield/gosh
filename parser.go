@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"gopkg.in/logex.v1"
 
 	"github.com/danwakefield/gosh/variables"
@@ -36,7 +38,7 @@ func (p *Parser) expect(expected ...Token) {
 			return
 		}
 	}
-	logex.Panic("Expected any of: ", expected, "\n got:", got)
+	logex.Panic("Expected any of: ", expected, ": got:", got)
 }
 
 func (p *Parser) backup() {
@@ -205,6 +207,30 @@ func (p *Parser) command() Node {
 		p.expect(TDone)
 
 		returnNode = n
+	case TFor:
+		tok = p.next()
+		if tok.Tok != TWord || tok.Quoted || !variables.IsGoodName(tok.Val) {
+			logex.Panic(fmt.Sprintf("Bad for loop variable name: '%s'", tok.Val))
+		}
+		n := NodeFor{Args: []Arg{}}
+		n.LoopVar = tok.Val
+
+		p.y.CheckAlias = true
+		p.y.CheckNewline = false
+		p.y.CheckKeyword = true
+
+		// Only deal with in blah for now.
+		p.expect(TIn)
+		for {
+			tok = p.next()
+			if tok.Tok != TWord {
+				p.backup()
+				p.expect(TNewLine, TSemicolon)
+				break
+			}
+			n.Args = append(n.Args, Arg{Raw: tok.Val, Subs: tok.Subs})
+		}
+
 	case TBegin:
 		returnNode = p.list(0)
 		p.expect(TEnd)
