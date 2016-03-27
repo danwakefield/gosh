@@ -44,7 +44,7 @@ type SubVariable struct {
 
 func (s SubVariable) Sub(scp *variables.Scope) (returnString string) {
 	logex.Debug("Substituting variable")
-	logex.Struct(s)
+	logex.Pretty(s)
 	defer func() {
 		logex.Debugf("Returned '%s'", returnString)
 	}()
@@ -105,7 +105,7 @@ type SubArith struct {
 
 func (s SubArith) Sub(scp *variables.Scope) string {
 	logex.Debug("Subtituting arithmetic")
-	logex.Struct(s)
+	logex.Pretty(s)
 	i, err := arith.Parse(s.Raw, scp)
 	if err != nil {
 		panic(err)

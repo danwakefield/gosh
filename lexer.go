@@ -26,9 +26,9 @@ type LexItem struct {
 	Tok    Token
 	Pos    int
 	LineNo int
-	Val    string
+	Val    string `json:",omitempty"`
 	Quoted bool
-	Subs   []Substitution
+	Subs   []Substitution `json:",omitempty"`
 }
 
 type Lexer struct {
@@ -122,7 +122,7 @@ func (l *Lexer) NextLexItem() (li LexItem) {
 		l.CheckNewline = false
 		l.CheckKeyword = false
 
-		logex.Struct(li)
+		logex.Pretty(li, li.Tok.String())
 	}()
 	li = <-l.itemChan
 
@@ -163,7 +163,7 @@ func lexStart(l *Lexer) StateFn {
 			l.emit(TEOF)
 			return nil
 		case ' ', '\t': // Ignore Whitespace
-			continue
+			l.ignore()
 		case '#': // Consume comments upto EOF or a newline
 			for {
 				c = l.next()
@@ -188,18 +188,21 @@ func lexStart(l *Lexer) StateFn {
 		case '&':
 			if l.hasNext('&') {
 				l.emit(TAnd)
+			} else {
+				l.emit(TBackground)
 			}
-			l.emit(TBackground)
 		case '|':
 			if l.hasNext('|') {
 				l.emit(TOr)
+			} else {
+				l.emit(TPipe)
 			}
-			l.emit(TPipe)
 		case ';':
 			if l.hasNext(';') {
 				l.emit(TEndCase)
+			} else {
+				l.emit(TSemicolon)
 			}
-			l.emit(TSemicolon)
 		case '(':
 			l.emit(TLeftParen)
 		case ')':

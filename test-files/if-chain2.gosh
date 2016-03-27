@@ -1,7 +1,7 @@
 if false; then
-	echo 'FIRST'
+	echo 'FAIL'
 elif false; then
-	echo 'SECOND'
+	echo 'FAIL'
 else
-	echo 'THIRD'
+	echo 'SUCCESS'
 fi

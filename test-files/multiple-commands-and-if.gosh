@@ -1,0 +1,6 @@
+A=0
+echo $A
+if [ $A -eq 0 ]; then
+    echo 'foobar'
+    echo 'barbaz'
+fi

@@ -10,6 +10,7 @@ import (
 	"github.com/danwakefield/gosh/variables"
 )
 
+// ExitStatus TODO
 type ExitStatus int
 
 const (
@@ -38,7 +39,10 @@ func (a Arg) Expand(scp *variables.Scope) (returnString string) {
 	s := ""
 	for {
 		// We use SubPosition+2 here as the SentinalSubtitution rune is 2
-		// characters wide.
+		// characters wide. It will probably be better to split do a count
+		// of SentinalSubtitution then split into []string and rejoin
+		// after calling Sub on each all of them. Not sure how that works
+		// with only one Sub though
 		s = a.Raw[:subPosition] + a.Subs[subCounter].Sub(scp) + a.Raw[subPosition+2:]
 		subPosition = strings.IndexRune(s, SentinalSubstitution)
 		if subPosition == -1 {
@@ -120,7 +124,7 @@ func (n NodeLoop) Eval(scp *variables.Scope) ExitStatus {
 type NodeFor struct {
 	LoopVar string
 	Args    []Arg
-	Body    NodeList
+	Body    Node
 }
 
 func (n NodeFor) Eval(scp *variables.Scope) ExitStatus {
@@ -152,6 +156,8 @@ type NodeIf struct {
 }
 
 func (n NodeIf) Eval(scp *variables.Scope) ExitStatus {
+	logex.Debug("Entered if")
+	logex.Pretty(n)
 	if n.Condition == nil {
 		return n.Body.Eval(scp)
 	}
@@ -175,6 +181,7 @@ type NodeCommand struct {
 }
 
 func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
+	logex.Pretty(n)
 	// A line with only assignments applies them to the Root Scope
 	// We check this first to avoid unnecessary scope Push/Pop's
 	if len(n.Args) == 0 {
@@ -199,8 +206,7 @@ func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	/* ===== THIS NEEDS TO BE EXTRACTED ====
 	* This should be the place that we search for builtins,
 	* relative path commands, commands etc.
-	* Will also need to be able to add redirections here somehow.
-	 */
+	* Will also need to be able to add redirections here somehow. */
 	env := scp.Environ()
 	cmd := exec.Command(expandedArgs[0], expandedArgs[1:]...)
 	cmd.Env = env
@@ -210,19 +216,53 @@ func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	logex.Info("========ENV======")
 	logex.Pretty(env)
 	logex.Info("========CMD======")
+	logex.Pretty(cmd)
+	logex.Info("========EXEC======")
 	err := cmd.Run()
 	logex.Info("=======EXIT======")
 	if err == nil {
 		logex.Info("> Success")
 		return ExitSuccess
 	}
-	if err == exec.ErrNotFound {
-		logex.Info("> Unknown Command")
-		return ExitUnknownCommand
-	}
+	logex.Error(err)
 	logex.Info("> Failure")
 	return ExitFailure
 	// ===== THIS NEEDS TO BE EXTRACTED ====
+}
+
+type NodeCaseList struct {
+	Patterns []Arg
+	Body     Node
+}
+
+func (n NodeCaseList) Eval(scp *variables.Scope) ExitStatus {
+	return n.Body.Eval(scp)
+}
+
+func (n NodeCaseList) Matches(s string, scp *variables.Scope) bool {
+	for _, p := range n.Patterns {
+		// Apply FNMatch here.
+		if s == p.Expand(scp) {
+			return true
+		}
+	}
+	return false
+}
+
+type NodeCase struct {
+	Expr  Arg
+	Cases []NodeCaseList
+}
+
+func (n NodeCase) Eval(scp *variables.Scope) ExitStatus {
+	expandedExpr := n.Expr.Expand(scp)
+
+	for _, c := range n.Cases {
+		if c.Matches(expandedExpr, scp) {
+			return c.Eval(scp)
+		}
+	}
+	return ExitSuccess
 }
 
 type NodePipe struct {

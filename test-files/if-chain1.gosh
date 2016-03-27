@@ -1,5 +1,5 @@
 if false; then
-	echo 'FIRST'
+	echo 'FAIL'
 elif true; then
-	echo 'SECOND'
+	echo 'SUCCESS'
 fi

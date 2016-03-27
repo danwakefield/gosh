@@ -73,13 +73,23 @@ func (p *Parser) Parse() Node {
 }
 
 func (p *Parser) list(newlineFlag int) Node {
-	logex.Debug("Enter\n")
+	// TODO: Change newlineFlag to be self documenting.
+	// Actually pass in something descriptive
+	logex.Debugf("Enter '%d'\n", newlineFlag)
 	defer logex.Debug("Exit\n")
 	nodes := NodeList{}
 
 	p.y.CheckAlias = true
 	p.y.CheckNewline = true
 	p.y.CheckKeyword = true
+	if newlineFlag == 2 {
+		tok := p.next()
+		if TokenEndsList[tok.Tok] {
+			p.backup()
+			return nil
+		}
+		p.backup()
+	}
 	for {
 		n := p.andOr()
 		tok := p.next()
@@ -91,9 +101,9 @@ func (p *Parser) list(newlineFlag int) Node {
 
 		switch tok.Tok {
 		case TNewLine:
-			if newlineFlag == 1 {
-				return nodes
-			}
+			// if newlineFlag == 1 {
+			// 	return nodes
+			// }
 			fallthrough
 		case TBackground, TSemicolon:
 			p.y.CheckAlias = true
@@ -156,7 +166,7 @@ func (p *Parser) command() Node {
 
 	switch tok.Tok {
 	default:
-		logex.Struct(tok)
+		logex.Pretty(tok)
 		logex.Fatal("Could not understand ^")
 	case TIf:
 		n := NodeIf{}
@@ -231,6 +241,74 @@ func (p *Parser) command() Node {
 			n.Args = append(n.Args, Arg{Raw: tok.Val, Subs: tok.Subs})
 		}
 
+		p.y.CheckAlias = true
+		p.y.CheckNewline = true
+		p.y.CheckKeyword = true
+
+		p.expect(TDo)
+		n.Body = p.list(0)
+		p.expect(TDone)
+		returnNode = n
+	case TCase:
+		n := NodeCase{Cases: []NodeCaseList{}}
+		tok = p.next()
+		if tok.Tok != TWord {
+			logex.Panic("Expected an expression after case")
+		}
+		n.Expr = Arg{Raw: tok.Val, Subs: tok.Subs}
+
+		p.y.CheckAlias = true
+		p.y.CheckNewline = true
+		p.y.CheckKeyword = true
+		p.expect(TIn)
+
+		for {
+			p.y.CheckAlias = false
+			p.y.CheckNewline = true
+			p.y.CheckKeyword = true
+			tok = p.next()
+			if tok.Tok == TEsac {
+				break
+			}
+			if tok.Tok == TLeftParen {
+				p.y.CheckAlias = false
+				p.y.CheckNewline = true
+				p.y.CheckKeyword = true
+				tok = p.next()
+				// Consume LeftParen if it exists
+				logex.Debug("Consume left Paren")
+			}
+			ncl := NodeCaseList{Patterns: []Arg{}}
+
+			for {
+				ncl.Patterns = append(ncl.Patterns, Arg{Raw: tok.Val, Subs: tok.Subs})
+				if p.hasNextToken(TPipe) {
+					tok = p.next()
+				} else {
+					break
+				}
+			}
+			logex.Pretty(ncl)
+			p.expect(TRightParen)
+			ncl.Body = p.list(2)
+
+			n.Cases = append(n.Cases, ncl)
+
+			p.y.CheckAlias = false
+			p.y.CheckNewline = true
+			p.y.CheckKeyword = true
+			tok = p.next()
+			if tok.Tok == TEsac {
+				break
+			} else if tok.Tok == TEndCase {
+				continue
+			} else {
+				// TODO: Create a func that expect + this can call
+				// to make panics for unexpected / missing tokens
+				logex.Panic("Expected endcase ';;' or 'esac'")
+			}
+		}
+		returnNode = n
 	case TBegin:
 		returnNode = p.list(0)
 		p.expect(TEnd)

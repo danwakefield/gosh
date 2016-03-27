@@ -1,3 +1,5 @@
-until false;do
-    echo "yes"
+A=0
+until [ $A -eq 2 ];do
+    echo $((A+=1))
 done
+echo "Done"

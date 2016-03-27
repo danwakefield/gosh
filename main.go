@@ -18,5 +18,6 @@ func main() {
 	fileContents, _ := ioutil.ReadFile(os.Args[1]) // Ignore error
 	p := NewParser(string(fileContents))
 	n := p.Parse()
+	logex.Pretty(n)
 	n.Eval(variables.NewScope())
 }
