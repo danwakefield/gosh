@@ -63,6 +63,9 @@ func (p *Parser) peekToken() Token {
 func (p *Parser) Parse() Node {
 	logex.Debug("Enter\n")
 	defer logex.Debug("Exit\n")
+	p.lexer.CheckAlias = true
+	p.lexer.CheckNewline = false
+	p.lexer.CheckKeyword = true
 	tok := p.next()
 
 	switch tok.Tok {
@@ -102,9 +105,9 @@ func (p *Parser) list(newlineFlag int) Node {
 
 		switch tok.Tok {
 		case TNewLine:
-			// if newlineFlag == 1 {
-			// 	return nodes
-			// }
+			if newlineFlag == 1 {
+				return nodes
+			}
 			fallthrough
 		case TBackground, TSemicolon:
 			p.lexer.CheckAlias = true

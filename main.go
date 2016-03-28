@@ -17,7 +17,19 @@ func init() {
 func main() {
 	fileContents, _ := ioutil.ReadFile(os.Args[1]) // Ignore error
 	p := NewParser(string(fileContents))
-	n := p.Parse()
-	logex.Pretty(n)
-	n.Eval(variables.NewScope())
+	scp := variables.NewScope()
+	ex := ExitSuccess
+	for {
+		n := p.Parse()
+		if n == nil {
+			//Newline
+			continue
+		}
+		logex.Pretty(n)
+		if _, isEOF := n.(NodeEOF); isEOF {
+			os.Exit(int(ex))
+		}
+
+		ex = n.Eval(scp)
+	}
 }
