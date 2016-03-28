@@ -1,0 +1,7 @@
+EMPTY=
+FULL=SUCCESS
+echo ${NOTSET+SUCCESS}
+echo ${EMPTY:+SUCCESS}
+echo "Next Two Lines Should Be Empty"
+echo ${FULL+FAIL}
+echo ${FULL:+FAIL}

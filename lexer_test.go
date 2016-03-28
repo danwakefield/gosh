@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestLex(t *testing.T) {
 	cases := []struct {
@@ -61,7 +64,7 @@ func TestLex(t *testing.T) {
 		l := NewLexer(c.in)
 		for count, expectedLexItem := range c.out {
 			got := l.NextLexItem()
-			if got != expectedLexItem {
+			if reflect.DeepEqual(got, expectedLexItem) {
 				t.Errorf(
 					"Lexing:\n %s\nExpected:\n %#v\nas LexItem %d but got:\n %#v\n",
 					c.in, expectedLexItem, count, got,

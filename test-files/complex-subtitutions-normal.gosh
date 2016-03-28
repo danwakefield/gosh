@@ -1,0 +1,6 @@
+FULL=SUCCESS
+EMPTY=
+echo ${FULL}
+echo "The next two lines should be empty"
+echo ${EMPTY}
+echo ${NOTSET}

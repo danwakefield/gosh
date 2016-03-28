@@ -330,8 +330,7 @@ func lexVariableComplex(l *Lexer) StateFn {
 		l.subs = append(l.subs, sv)
 	}()
 
-	c := l.next()
-	if c == '#' {
+	if l.hasNext('#') {
 		// The NParam Special Var
 		if l.hasNext('}') {
 			varbuf.WriteRune('#')
@@ -340,9 +339,9 @@ func lexVariableComplex(l *Lexer) StateFn {
 
 		// Length variable operator
 		sv.SubType = VarSubLength
-		c = l.next()
 	}
 
+	c := l.next()
 	switch {
 	case char.IsSpecial(c):
 		varbuf.WriteRune(c)
@@ -380,10 +379,9 @@ func lexVariableComplex(l *Lexer) StateFn {
 
 	if l.hasNext(':') {
 		sv.CheckNull = true
-		c = l.next()
 	}
 
-	switch c {
+	switch l.next() {
 	case '-':
 		sv.SubType = VarSubMinus
 	case '+':
@@ -427,22 +425,24 @@ func lexVariableComplex(l *Lexer) StateFn {
 
 }
 func lexBackQuote(l *Lexer) StateFn {
+	logex.Panic("Not Implemented")
 	return nil
 }
 func lexSubshell(l *Lexer) StateFn {
+	logex.Panic("Not Implemented")
 	return nil
 }
 func lexArith(l *Lexer) StateFn {
 	// Upon entering this state we have read the '$(('
 	l.buf.WriteRune(SentinalSubstitution)
 	arithBuf := bytes.Buffer{}
-	parenCount := 0
 	sa := SubArith{}
 	defer func() {
 		sa.Raw = arithBuf.String()
 		l.subs = append(l.subs, sa)
 	}()
 
+	parenCount := 0
 	for {
 		c := l.next()
 		if parenCount == 0 && c == ')' {
@@ -451,7 +451,7 @@ func lexArith(l *Lexer) StateFn {
 			}
 			// Bash just ignores a closing brakcet with no opening
 			// bracket so we will emulate that.
-			c = l.next()
+			continue
 		}
 		if c == '(' {
 			parenCount++
@@ -475,6 +475,9 @@ func lexDoubleQuote(l *Lexer) StateFn {
 			panic(ErrQuotedString) //TODO: Dont make this panic
 		case '\x01':
 			continue
+		case '$':
+			l.subReturnFunc = lexDoubleQuote
+			return lexSubstitution
 		case '"':
 			return lexWord
 		default:

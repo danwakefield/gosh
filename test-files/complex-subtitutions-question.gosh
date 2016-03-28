@@ -1,0 +1,7 @@
+EMPTY=
+FULL=SUCCESS
+echo ${FULL?FAIL}
+echo "Next Line Should Be Empty"
+echo ${EMPTY?FAIL}
+echo ${EMPTY:?SUCCESS}
+echo "FAIL: Shell Should Have Exited"

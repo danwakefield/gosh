@@ -20,8 +20,8 @@ type LexError struct {
 	Err error
 }
 
-func (le LexError) Error() string {
-	return "Error parsing '" + le.X + "' :" + le.Err.Error()
+func (e LexError) Error() string {
+	return "Error parsing '" + e.X + "' :" + e.Err.Error()
 }
 
 // Lexer ...
@@ -40,48 +40,48 @@ func NewLexer(s string) *Lexer {
 }
 
 // next returns the next available rune from the input string.
-func (al *Lexer) next() rune {
-	if al.pos >= al.inputLen {
-		al.lastRuneWidth = 0
+func (l *Lexer) next() rune {
+	if l.pos >= l.inputLen {
+		l.lastRuneWidth = 0
 		return EOFRune
 	}
-	r, w := utf8.DecodeRuneInString(al.input[al.pos:])
-	al.lastRuneWidth = w
-	al.pos += w
+	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
+	l.lastRuneWidth = w
+	l.pos += w
 	return r
 }
 
 // backup reverses a call to next idempotently
-func (al *Lexer) backup() {
-	al.pos -= al.lastRuneWidth
-	al.lastRuneWidth = 0
+func (l *Lexer) backup() {
+	l.pos -= l.lastRuneWidth
+	l.lastRuneWidth = 0
 }
 
 // peek returns the next rune from the input
 // state of the lexer is preserved
-func (al *Lexer) peek() rune {
-	lrw := al.lastRuneWidth
-	r := al.next()
-	al.backup()
-	al.lastRuneWidth = lrw
+func (l *Lexer) peek() rune {
+	lrw := l.lastRuneWidth
+	r := l.next()
+	l.backup()
+	l.lastRuneWidth = lrw
 	return r
 }
 
-func (al *Lexer) hasNext(r rune) bool {
-	if r == al.next() {
+func (l *Lexer) hasNext(r rune) bool {
+	if r == l.next() {
 		return true
 	}
-	al.backup()
+	l.backup()
 	return false
 }
 
 // hasNextFunc uses the supplied func to check the validity of the next
 // character from the input
-func (al *Lexer) hasNextFunc(fn func(rune) bool) bool {
-	if fn(al.next()) {
+func (l *Lexer) hasNextFunc(fn func(rune) bool) bool {
+	if fn(l.next()) {
 		return true
 	}
-	al.backup()
+	l.backup()
 	return false
 }
 
@@ -92,17 +92,17 @@ func (al *Lexer) hasNextFunc(fn func(rune) bool) bool {
 //
 // In the future it may be possible that
 // If Token == ArithError then interface will be an error
-func (al *Lexer) Lex() (Token, interface{}) {
+func (l *Lexer) Lex() (Token, interface{}) {
 	var t Token
 	var checkAssignmentOp bool
 	var startPos, endPos int
 
-	c := al.next()
+	c := l.next()
 
 	// Ignore whitespace
 	for {
 		if c == ' ' || c == '\n' || c == '\t' {
-			c = al.next()
+			c = l.next()
 		} else {
 			break
 		}
@@ -117,49 +117,49 @@ func (al *Lexer) Lex() (Token, interface{}) {
 		// Special case for Hex (0xff) and Octal (0777) constants
 		if c == '0' {
 			// Hex constants
-			if al.hasNext('x') || al.hasNext('X') {
-				startPos = al.pos
-				endPos = al.pos
+			if l.hasNext('x') || l.hasNext('X') {
+				startPos = l.pos
+				endPos = l.pos
 				for {
 					//Find the end of the constant
-					if al.hasNextFunc(char.IsHexDigit) {
+					if l.hasNextFunc(char.IsHexDigit) {
 						endPos++
 					} else {
 						//Check if the number is invalid.
 						//We already know the next rune is not a hex digit
-						if char.IsInVarName(al.peek()) {
+						if char.IsInVarName(l.peek()) {
 							return ArithError, LexError{
-								X:   al.input[startPos-2 : endPos+1],
+								X:   l.input[startPos-2 : endPos+1],
 								Err: ErrHexConstant,
 							}
 						}
 						break
 					}
 				}
-				parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 16, 64)
+				parsedVal, err := strconv.ParseInt(l.input[startPos:endPos], 16, 64)
 				if err != nil {
 					panic("Not Reached: Broken Hex Constant")
 				}
 				return ArithNumber, parsedVal
 			}
 			// Octal constants
-			if al.hasNextFunc(char.IsOctalDigit) {
-				startPos = al.pos - al.lastRuneWidth
-				endPos = al.pos
+			if l.hasNextFunc(char.IsOctalDigit) {
+				startPos = l.pos - l.lastRuneWidth
+				endPos = l.pos
 				for {
-					if al.hasNextFunc(char.IsOctalDigit) {
+					if l.hasNextFunc(char.IsOctalDigit) {
 						endPos++
 					} else {
-						if char.IsInVarName(al.peek()) {
+						if char.IsInVarName(l.peek()) {
 							return ArithError, LexError{
-								X:   al.input[startPos-1 : endPos+1],
+								X:   l.input[startPos-1 : endPos+1],
 								Err: ErrOctalConstant,
 							}
 						}
 						break
 					}
 				}
-				parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 8, 64)
+				parsedVal, err := strconv.ParseInt(l.input[startPos:endPos], 8, 64)
 				if err != nil {
 					panic("Not Reached: Broken Octal Constant")
 				}
@@ -169,22 +169,22 @@ func (al *Lexer) Lex() (Token, interface{}) {
 			// Simple Zero constant
 			return ArithNumber, int64(0)
 		}
-		startPos = al.pos - al.lastRuneWidth
-		endPos = al.pos
+		startPos = l.pos - l.lastRuneWidth
+		endPos = l.pos
 		for {
-			if al.hasNextFunc(char.IsDigit) {
+			if l.hasNextFunc(char.IsDigit) {
 				endPos++
 			} else {
-				if char.IsFirstInVarName(al.peek()) {
+				if char.IsFirstInVarName(l.peek()) {
 					return ArithError, LexError{
-						X:   al.input[startPos : endPos+1],
+						X:   l.input[startPos : endPos+1],
 						Err: ErrDecimalConstant,
 					}
 				}
 				break
 			}
 		}
-		parsedVal, err := strconv.ParseInt(al.input[startPos:endPos], 10, 64)
+		parsedVal, err := strconv.ParseInt(l.input[startPos:endPos], 10, 64)
 		if err != nil {
 			panic("Not Reached: Broken Decimal Constant")
 		}
@@ -193,21 +193,21 @@ func (al *Lexer) Lex() (Token, interface{}) {
 
 	// Finds variable names.
 	if char.IsFirstInVarName(c) {
-		startPos = al.pos - al.lastRuneWidth
-		endPos = al.pos
+		startPos = l.pos - l.lastRuneWidth
+		endPos = l.pos
 		for {
-			if al.hasNextFunc(char.IsInVarName) {
+			if l.hasNextFunc(char.IsInVarName) {
 				endPos++
 			} else {
 				break
 			}
 		}
-		return ArithVariable, al.input[startPos:endPos]
+		return ArithVariable, l.input[startPos:endPos]
 	}
 
 	switch c {
 	case '>':
-		switch al.next() {
+		switch l.next() {
 		case '>':
 			t = ArithRightShift
 			checkAssignmentOp = true
@@ -215,10 +215,10 @@ func (al *Lexer) Lex() (Token, interface{}) {
 			t = ArithGreaterEqual
 		default:
 			t = ArithGreaterThan
-			al.backup()
+			l.backup()
 		}
 	case '<':
-		switch al.next() {
+		switch l.next() {
 		case '<':
 			t = ArithLeftShift
 			checkAssignmentOp = true
@@ -226,17 +226,17 @@ func (al *Lexer) Lex() (Token, interface{}) {
 			t = ArithLessEqual
 		default:
 			t = ArithLessThan
-			al.backup()
+			l.backup()
 		}
 	case '|':
-		if al.hasNext('|') {
+		if l.hasNext('|') {
 			t = ArithOr
 		} else {
 			t = ArithBinaryOr
 			checkAssignmentOp = true
 		}
 	case '&':
-		if al.hasNext('&') {
+		if l.hasNext('&') {
 			t = ArithAnd
 		} else {
 			t = ArithBinaryAnd
@@ -261,13 +261,13 @@ func (al *Lexer) Lex() (Token, interface{}) {
 		t = ArithBinaryXor
 		checkAssignmentOp = true
 	case '!':
-		if al.hasNext('=') {
+		if l.hasNext('=') {
 			t = ArithNotEqual
 		} else {
 			t = ArithNot
 		}
 	case '=':
-		if al.hasNext('=') {
+		if l.hasNext('=') {
 			t = ArithEqual
 		} else {
 			t = ArithAssignment
@@ -287,7 +287,7 @@ func (al *Lexer) Lex() (Token, interface{}) {
 	}
 
 	if checkAssignmentOp {
-		if al.hasNext('=') {
+		if l.hasNext('=') {
 			t += ArithAssignDiff
 		}
 	}

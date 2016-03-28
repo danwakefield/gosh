@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/logex.v1"
 
+	"github.com/danwakefield/fnmatch"
 	"github.com/danwakefield/gosh/variables"
 )
 
@@ -31,26 +32,35 @@ func (a Arg) Expand(scp *variables.Scope) (returnString string) {
 		logex.Debugf("Returned '%s'", returnString)
 	}()
 
-	subPosition := strings.IndexRune(a.Raw, SentinalSubstitution)
-	if subPosition == -1 {
+	if hasSub := strings.ContainsRune(a.Raw, SentinalSubstitution); !hasSub {
 		return a.Raw
 	}
-	subCounter := 0
-	s := ""
-	for {
-		// We use SubPosition+2 here as the SentinalSubtitution rune is 2
-		// characters wide. It will probably be better to split do a count
-		// of SentinalSubtitution then split into []string and rejoin
-		// after calling Sub on each all of them. Not sure how that works
-		// with only one Sub though
-		s = a.Raw[:subPosition] + a.Subs[subCounter].Sub(scp) + a.Raw[subPosition+2:]
-		subPosition = strings.IndexRune(s, SentinalSubstitution)
-		if subPosition == -1 {
-			break
+
+	// Split the Raw string into a []string. Each element would have been
+	// immediately followed by a substitution.
+	fields := strings.FieldsFunc(a.Raw, func(r rune) bool {
+		return r == SentinalSubstitution
+	})
+
+	logex.Pretty(len(fields), fields)
+	// We will either need len(a.Subs) or 2*len(a.Subs)
+	// for the string and since append doubles the size(?) when hitting
+	// capacity we only need to extend at most once
+	x := make([]string, len(a.Subs))
+	if len(fields) == 0 {
+		// If fields contains nothing after being split the string consists
+		// of only consecutive substitutions
+		for _, s := range a.Subs {
+			x = append(x, s.Sub(scp))
 		}
-		subCounter++
+	} else {
+		for i, f := range fields {
+			x = append(x, f)
+			x = append(x, a.Subs[i].Sub(scp))
+		}
 	}
-	return s
+
+	return strings.Join(x, "")
 }
 
 type Node interface {
@@ -242,7 +252,8 @@ func (n NodeCaseList) Eval(scp *variables.Scope) ExitStatus {
 func (n NodeCaseList) Matches(s string, scp *variables.Scope) bool {
 	for _, p := range n.Patterns {
 		// Apply FNMatch here.
-		if s == p.Expand(scp) {
+		expandedPattern := p.Expand(scp)
+		if fnmatch.Match(expandedPattern, s, 0) {
 			return true
 		}
 	}

@@ -1,0 +1,3 @@
+echo "The next line should be 'NOTSET: parameter not set'"
+echo ${NOTSET?}
+echo "FAIL: Shell Should Have Exited"

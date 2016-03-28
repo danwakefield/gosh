@@ -37,7 +37,7 @@ const (
 
 type SubVariable struct {
 	VarName   string
-	SubVal    string // The text following any sub operator
+	SubVal    string `json:",omitempty"` // The text following any sub operator
 	CheckNull bool
 	SubType   VarSubType
 }
@@ -92,7 +92,7 @@ func (s SubVariable) Sub(scp *variables.Scope) (returnString string) {
 		}
 		ExitShellWithMessage(ExitFailure, s.VarName+": Parameter not set")
 	case VarSubTrimRight, VarSubTrimRightMax, VarSubTrimLeft, VarSubTrimLeftMax:
-		logex.Panic("Trim operations not implemented")
+		ExitShellWithMessage(ExitFailure, "Trim operations not implemented")
 	}
 
 	logex.Panic("Not Reached")

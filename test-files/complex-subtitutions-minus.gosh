@@ -1,0 +1,7 @@
+EMPTY=
+FULL=SUCCESS
+echo ${NOTSET-SUCCESS}
+echo ${EMPTY:-SUCCESS}
+echo ${FULL-FAIL}
+echo ${FULL:-FAIL}
+

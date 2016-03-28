@@ -9,14 +9,14 @@ import (
 )
 
 type Parser struct {
-	y           *Lexer
+	lexer       *Lexer
 	lastLexItem LexItem
 	pushBack    bool
 }
 
 func NewParser(input string) *Parser {
 	return &Parser{
-		y: NewLexer(input),
+		lexer: NewLexer(input),
 	}
 }
 
@@ -25,7 +25,7 @@ func (p *Parser) next() LexItem {
 		p.pushBack = false
 		return p.lastLexItem
 	}
-	p.lastLexItem = p.y.NextLexItem()
+	p.lastLexItem = p.lexer.NextLexItem()
 
 	return p.lastLexItem
 }
@@ -54,6 +54,12 @@ func (p *Parser) hasNextToken(want Token) bool {
 	return false
 }
 
+func (p *Parser) peekToken() Token {
+	t := p.next()
+	p.backup()
+	return t.Tok
+}
+
 func (p *Parser) Parse() Node {
 	logex.Debug("Enter\n")
 	defer logex.Debug("Exit\n")
@@ -79,16 +85,11 @@ func (p *Parser) list(newlineFlag int) Node {
 	defer logex.Debug("Exit\n")
 	nodes := NodeList{}
 
-	p.y.CheckAlias = true
-	p.y.CheckNewline = true
-	p.y.CheckKeyword = true
-	if newlineFlag == 2 {
-		tok := p.next()
-		if TokenEndsList[tok.Tok] {
-			p.backup()
-			return nil
-		}
-		p.backup()
+	p.lexer.CheckAlias = true
+	p.lexer.CheckNewline = true
+	p.lexer.CheckKeyword = true
+	if newlineFlag == 2 && TokenEndsList[p.peekToken()] {
+		return nil
 	}
 	for {
 		n := p.andOr()
@@ -106,15 +107,12 @@ func (p *Parser) list(newlineFlag int) Node {
 			// }
 			fallthrough
 		case TBackground, TSemicolon:
-			p.y.CheckAlias = true
-			p.y.CheckNewline = true
-			p.y.CheckKeyword = true
-			tok = p.next()
-			if TokenEndsList[tok.Tok] {
-				p.backup()
+			p.lexer.CheckAlias = true
+			p.lexer.CheckNewline = true
+			p.lexer.CheckKeyword = true
+			if TokenEndsList[p.peekToken()] {
 				return nodes
 			}
-			p.backup()
 		case TEOF:
 			p.backup()
 			return nodes
@@ -141,9 +139,9 @@ func (p *Parser) pipeline() Node {
 
 	if p.hasNextToken(TNot) {
 		negate = !negate
-		p.y.CheckAlias = true
-		p.y.CheckNewline = false
-		p.y.CheckKeyword = true
+		p.lexer.CheckAlias = true
+		p.lexer.CheckNewline = false
+		p.lexer.CheckKeyword = true
 	}
 
 	returnNode := p.command()
@@ -172,13 +170,12 @@ func (p *Parser) command() Node {
 		n := NodeIf{}
 		// We need a copy of the orignal pointer to return as the head of the if chain
 		ifHead := &n
-		p.y.CheckNewline = true
+		p.lexer.CheckNewline = true
 		ifCondition := p.list(0)
 		n.Condition = &ifCondition
 		p.expect(TThen)
 		n.Body = p.list(0)
 
-		// Elif's
 		for {
 			if p.hasNextToken(TElif) {
 				nelif := NodeIf{}
@@ -191,10 +188,6 @@ func (p *Parser) command() Node {
 			} else {
 				break
 			}
-			/*
-			* list(0) means that TSEMI/TNL is advanced and we dont have to
-			* expect it in if, while, etc.
-			 */
 		}
 
 		if p.hasNextToken(TElse) {
@@ -225,9 +218,9 @@ func (p *Parser) command() Node {
 		n := NodeFor{Args: []Arg{}}
 		n.LoopVar = tok.Val
 
-		p.y.CheckAlias = true
-		p.y.CheckNewline = false
-		p.y.CheckKeyword = true
+		p.lexer.CheckAlias = true
+		p.lexer.CheckNewline = false
+		p.lexer.CheckKeyword = true
 
 		// Only deal with in blah for now.
 		p.expect(TIn)
@@ -241,9 +234,9 @@ func (p *Parser) command() Node {
 			n.Args = append(n.Args, Arg{Raw: tok.Val, Subs: tok.Subs})
 		}
 
-		p.y.CheckAlias = true
-		p.y.CheckNewline = true
-		p.y.CheckKeyword = true
+		p.lexer.CheckAlias = true
+		p.lexer.CheckNewline = true
+		p.lexer.CheckKeyword = true
 
 		p.expect(TDo)
 		n.Body = p.list(0)
@@ -257,23 +250,23 @@ func (p *Parser) command() Node {
 		}
 		n.Expr = Arg{Raw: tok.Val, Subs: tok.Subs}
 
-		p.y.CheckAlias = true
-		p.y.CheckNewline = true
-		p.y.CheckKeyword = true
+		p.lexer.CheckAlias = true
+		p.lexer.CheckNewline = true
+		p.lexer.CheckKeyword = true
 		p.expect(TIn)
 
 		for {
-			p.y.CheckAlias = false
-			p.y.CheckNewline = true
-			p.y.CheckKeyword = true
+			p.lexer.CheckAlias = false
+			p.lexer.CheckNewline = true
+			p.lexer.CheckKeyword = true
 			tok = p.next()
 			if tok.Tok == TEsac {
 				break
 			}
 			if tok.Tok == TLeftParen {
-				p.y.CheckAlias = false
-				p.y.CheckNewline = true
-				p.y.CheckKeyword = true
+				p.lexer.CheckAlias = false
+				p.lexer.CheckNewline = true
+				p.lexer.CheckKeyword = true
 				tok = p.next()
 				// Consume LeftParen if it exists
 				logex.Debug("Consume left Paren")
@@ -294,18 +287,19 @@ func (p *Parser) command() Node {
 
 			n.Cases = append(n.Cases, ncl)
 
-			p.y.CheckAlias = false
-			p.y.CheckNewline = true
-			p.y.CheckKeyword = true
+			p.lexer.CheckAlias = false
+			p.lexer.CheckNewline = true
+			p.lexer.CheckKeyword = true
 			tok = p.next()
 			if tok.Tok == TEsac {
 				break
 			} else if tok.Tok == TEndCase {
 				continue
 			} else {
-				// TODO: Create a func that expect + this can call
-				// to make panics for unexpected / missing tokens
-				logex.Panic("Expected endcase ';;' or 'esac'")
+				ExitShellWithMessage(
+					ExitFailure,
+					fmt.Sprintf("Expected ';;' or 'esac' on line %d", tok.LineNo),
+				)
 			}
 		}
 		returnNode = n
@@ -320,6 +314,7 @@ func (p *Parser) command() Node {
 	return returnNode
 }
 
+// simpleCommand
 func (p *Parser) simpleCommand() NodeCommand {
 	logex.Debugf("Enter\n")
 	tok := p.next()
@@ -328,9 +323,9 @@ func (p *Parser) simpleCommand() NodeCommand {
 	startLine := tok.LineNo
 	assignmentAllowed := true
 
-	p.y.CheckAlias = true
-	p.y.CheckNewline = false
-	p.y.CheckKeyword = false
+	p.lexer.CheckAlias = true
+	p.lexer.CheckNewline = false
+	p.lexer.CheckKeyword = false
 
 OuterLoop:
 	for {
@@ -338,7 +333,7 @@ OuterLoop:
 		case TWord:
 			if assignmentAllowed && variables.IsAssignment(tok.Val) {
 				assignments = append(assignments, tok.Val)
-				p.y.CheckAlias = false
+				p.lexer.CheckAlias = false
 			} else {
 				assignmentAllowed = false
 				args = append(args, Arg{Raw: tok.Val, Subs: tok.Subs})
