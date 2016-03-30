@@ -24,7 +24,7 @@ if [ "$?" -ne 0 ]; then
 fi
 cd "$TEST_DIR"
 
-for f in $(ls -1 ./*.gosh); do
+for f in $(ls -1 *.gosh); do
 	GOLDEN="./golden/${f%.gosh}.golden"
 	if [ ! -e "$GOLDEN" ]; then
 		echo "Missing Golden file: $GOLDEN"

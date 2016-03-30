@@ -132,7 +132,28 @@ func (p *Parser) list(newlineFlag int) Node {
 func (p *Parser) andOr() Node {
 	logex.Debug("Enter\n")
 	defer logex.Debug("Exit\n")
-	return p.pipeline()
+	var returnNode Node
+
+	returnNode = p.pipeline()
+	for {
+		tok := p.next()
+		if tok.Tok == TAnd || tok.Tok == TOr {
+			n := NodeBinary{IsAnd: tok.Tok == TAnd}
+
+			n.Left = returnNode
+
+			p.lexer.CheckAlias = true
+			p.lexer.CheckNewline = true
+			p.lexer.CheckKeyword = true
+			n.Right = p.pipeline()
+
+			returnNode = n
+		} else {
+			p.backup()
+			break
+		}
+	}
+	return returnNode
 }
 
 func (p *Parser) pipeline() Node {

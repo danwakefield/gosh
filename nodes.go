@@ -89,6 +89,28 @@ func (n NodeList) Eval(scp *variables.Scope) ExitStatus {
 	return returnExit
 }
 
+type NodeBinary struct {
+	Left, Right Node
+	IsAnd       bool
+}
+
+func (n NodeBinary) Eval(scp *variables.Scope) ExitStatus {
+	var runRight bool
+
+	leftExit := n.Left.Eval(scp)
+	if n.IsAnd {
+		runRight = leftExit == ExitSuccess
+	} else {
+		runRight = leftExit != ExitSuccess
+	}
+
+	if runRight {
+		return n.Right.Eval(scp)
+	}
+
+	return leftExit
+}
+
 // NodeNegate is used to flip the ExitStatus of the contained Node
 type NodeNegate struct {
 	N Node
