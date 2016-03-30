@@ -1,0 +1,7 @@
+{ echo "SUCCESS" ;}
+{ echo "SUCCESS"
+}
+# Check that the last exitcode of a command group is the one that is returned
+if { false; false; true ;}; then
+	echo "SUCCESS"
+fi

@@ -1,0 +1,2 @@
+# Should be ignored
+echo "SUCCESS" # Also ignored
