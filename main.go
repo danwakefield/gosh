@@ -19,6 +19,7 @@ func main() {
 	p := NewParser(string(fileContents))
 	scp := variables.NewScope()
 	ex := ExitSuccess
+
 	for {
 		n := p.Parse()
 		if n == nil {

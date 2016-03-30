@@ -1,7 +1,26 @@
 case a in
-	a) echo "a"
+	a) echo "SUCCESS"
 	;;
-	b) echo "b"
+	b) echo "FAIL"
+esac
+
+case b in
+	a) echo "FAIL"
 	;;
-	c) echo "c"
+	b) echo "SUCCESS"
+esac
+
+case xyz in
+	xyz) echo "SUCCESS"
+	;;
+	*) echo "FAIL"
+esac
+
+case xyz in
+	*) echo "SUCCESS"
+esac
+
+case bb in
+	[a-c][a-c]) echo "SUCCESS"
+	;;
 esac

@@ -295,6 +295,7 @@ func (p *Parser) command() Node {
 			p.lexer.CheckKeyword = true
 			tok = p.next()
 			if tok.Tok == TEsac {
+				p.lexer.CheckNewline = false
 				break
 			} else if tok.Tok == TEndCase {
 				continue
