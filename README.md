@@ -12,5 +12,6 @@ The aim of GOSH is to create a POSIX compliant shell runtime using a modern type
 - [ ] Subshell / Backquotes - Naive ones could be done by eating upto the next \`/). Complex by a recursive Parser
 - [ ] Character escaping in strings
 - [ ] Builtin commands - source / . will probably be first
+- [ ] Interactive support - Use the golang readline port and add in prompts where needed
 - [ ] Shell options - I.e set -x, prints line before evaluation. set -e exits on any non-zero status
 - [ ] Fix arithmetic ternary bug - See comments in file
