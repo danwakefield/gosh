@@ -98,9 +98,6 @@ func (p *Parser) list(newlineFlag int) Node {
 		n := p.andOr()
 		tok := p.next()
 
-		if tok.Tok == TRedirection {
-			//
-		}
 		nodes = append(nodes, n)
 
 		switch tok.Tok {
@@ -162,7 +159,7 @@ func (p *Parser) pipeline() Node {
 	negate := false
 
 	if p.hasNextToken(TNot) {
-		negate = !negate
+		negate = true
 		p.lexer.CheckAlias = true
 		p.lexer.CheckNewline = false
 		p.lexer.CheckKeyword = true

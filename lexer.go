@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"unicode/utf8"
 
 	"gopkg.in/logex.v1"
@@ -86,9 +87,16 @@ func (l *Lexer) next() rune {
 		l.pos++
 		return EOFRune
 	}
-	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
-	l.pos += w
-	l.backupWidth = w
+	var r rune
+	var w int
+	for {
+		r, w = utf8.DecodeRuneInString(l.input[l.pos:])
+		l.pos += w
+		l.backupWidth = w
+		if r != '\x01' {
+			break
+		}
+	}
 	return r
 }
 
@@ -277,8 +285,8 @@ func lexSubstitution(l *Lexer) StateFn {
 		l.backup()
 		return lexVariableSimple
 	}
-	return nil
 }
+
 func lexVariableSimple(l *Lexer) StateFn {
 	// When we enter this state we know we have at least one readable
 	// char for the varname. That means that any character not valid
@@ -374,7 +382,7 @@ func lexVariableComplex(l *Lexer) StateFn {
 
 	// Length operator should have returned since only ${#varname} is valid
 	if sv.SubType == VarSubLength {
-		logex.Panic("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos])
+		logex.Panic(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
 	}
 
 	if l.hasNext(':') {
@@ -403,7 +411,7 @@ func lexVariableComplex(l *Lexer) StateFn {
 			sv.SubType = VarSubTrimRight
 		}
 	default:
-		logex.Panic("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos])
+		logex.Panic(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
 	}
 
 	// Read until '}'
@@ -437,10 +445,6 @@ func lexArith(l *Lexer) StateFn {
 	l.buf.WriteRune(SentinalSubstitution)
 	arithBuf := bytes.Buffer{}
 	sa := SubArith{}
-	defer func() {
-		sa.Raw = arithBuf.String()
-		l.subs = append(l.subs, sa)
-	}()
 
 	parenCount := 0
 	for {
@@ -462,6 +466,8 @@ func lexArith(l *Lexer) StateFn {
 		arithBuf.WriteRune(c)
 	}
 
+	sa.Raw = arithBuf.String()
+	l.subs = append(l.subs, sa)
 	return l.subReturnFunc
 }
 
@@ -473,8 +479,6 @@ func lexDoubleQuote(l *Lexer) StateFn {
 		switch c {
 		case EOFRune:
 			panic(ErrQuotedString) //TODO: Dont make this panic
-		case '\x01':
-			continue
 		case '$':
 			l.subReturnFunc = lexDoubleQuote
 			return lexSubstitution
@@ -494,8 +498,6 @@ func lexSingleQuote(l *Lexer) StateFn {
 		switch c {
 		case EOFRune:
 			panic(ErrQuotedString) //TODO: Dont make this panic
-		case '\x01':
-			continue
 		case '\'':
 			return lexWord
 		default:
