@@ -32,7 +32,7 @@ func (a Arg) Expand(scp *variables.Scope) (returnString string) {
 		logex.Debugf("Returned '%s'", returnString)
 	}()
 
-	if hasSub := strings.ContainsRune(a.Raw, SentinalSubstitution); !hasSub {
+	if !strings.ContainsRune(a.Raw, SentinalSubstitution) {
 		return a.Raw
 	}
 
@@ -42,10 +42,6 @@ func (a Arg) Expand(scp *variables.Scope) (returnString string) {
 		return r == SentinalSubstitution
 	})
 
-	logex.Pretty(len(fields), fields)
-	// We will either need len(a.Subs) or 2*len(a.Subs)
-	// for the string and since append doubles the size(?) when hitting
-	// capacity we only need to extend at most once
 	x := make([]string, len(a.Subs))
 	if len(fields) == 0 {
 		// If fields contains nothing after being split the string consists
@@ -189,7 +185,6 @@ type NodeIf struct {
 
 func (n NodeIf) Eval(scp *variables.Scope) ExitStatus {
 	logex.Debug("Entered if")
-	logex.Pretty(n)
 	if n.Condition == nil {
 		return n.Body.Eval(scp)
 	}

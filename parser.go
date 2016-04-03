@@ -64,7 +64,7 @@ func (p *Parser) Parse() Node {
 	logex.Debug("Enter\n")
 	defer logex.Debug("Exit\n")
 	p.lexer.CheckAlias = true
-	p.lexer.CheckNewline = false
+	p.lexer.IgnoreNewlines = false
 	p.lexer.CheckKeyword = true
 	tok := p.next()
 
@@ -77,21 +77,29 @@ func (p *Parser) Parse() Node {
 		return nil
 	default:
 		p.backup()
-		return p.list(1)
+		return p.list(ObserveNewlines)
 	}
 }
 
-func (p *Parser) list(newlineFlag int) Node {
+type NewlineFlag int
+
+const (
+	IgnoreNewlines  NewlineFlag = 0
+	ObserveNewlines NewlineFlag = 1
+	AllowEmptyNode  NewlineFlag = 2
+)
+
+func (p *Parser) list(nlf NewlineFlag) Node {
 	// TODO: Change newlineFlag to be self documenting.
 	// Actually pass in something descriptive
-	logex.Debugf("Enter '%d'\n", newlineFlag)
+	logex.Debugf("Enter '%d'\n", nlf)
 	defer logex.Debug("Exit\n")
 	nodes := NodeList{}
 
 	p.lexer.CheckAlias = true
-	p.lexer.CheckNewline = true
+	p.lexer.IgnoreNewlines = true
 	p.lexer.CheckKeyword = true
-	if newlineFlag == 2 && TokenEndsList[p.peekToken()] {
+	if nlf == AllowEmptyNode && TokenEndsList[p.peekToken()] {
 		return nil
 	}
 	for {
@@ -102,13 +110,13 @@ func (p *Parser) list(newlineFlag int) Node {
 
 		switch tok.Tok {
 		case TNewLine:
-			if newlineFlag == 1 {
+			if nlf == ObserveNewlines {
 				return nodes
 			}
 			fallthrough
 		case TBackground, TSemicolon:
 			p.lexer.CheckAlias = true
-			p.lexer.CheckNewline = true
+			p.lexer.IgnoreNewlines = true
 			p.lexer.CheckKeyword = true
 			if TokenEndsList[p.peekToken()] {
 				return nodes
@@ -117,7 +125,7 @@ func (p *Parser) list(newlineFlag int) Node {
 			p.backup()
 			return nodes
 		default:
-			if newlineFlag == 1 {
+			if nlf == ObserveNewlines {
 				logex.Panic("Unexpected Token:\n", tok)
 			}
 			p.backup()
@@ -140,7 +148,7 @@ func (p *Parser) andOr() Node {
 			n.Left = returnNode
 
 			p.lexer.CheckAlias = true
-			p.lexer.CheckNewline = true
+			p.lexer.IgnoreNewlines = true
 			p.lexer.CheckKeyword = true
 			n.Right = p.pipeline()
 
@@ -161,7 +169,7 @@ func (p *Parser) pipeline() Node {
 	if p.hasNextToken(TNot) {
 		negate = true
 		p.lexer.CheckAlias = true
-		p.lexer.CheckNewline = false
+		p.lexer.IgnoreNewlines = false
 		p.lexer.CheckKeyword = true
 	}
 
@@ -188,46 +196,16 @@ func (p *Parser) command() Node {
 		logex.Pretty(tok)
 		logex.Fatal("Could not understand ^")
 	case TIf:
-		n := NodeIf{}
-		// We need a copy of the orignal pointer to return as the head of the if chain
-		ifHead := &n
-		p.lexer.CheckNewline = true
-		ifCondition := p.list(0)
-		n.Condition = &ifCondition
-		p.expect(TThen)
-		n.Body = p.list(0)
-
-		for {
-			if p.hasNextToken(TElif) {
-				nelif := NodeIf{}
-				ifCondition = p.list(0)
-				nelif.Condition = &ifCondition
-				p.expect(TThen)
-				nelif.Body = p.list(0)
-				n.Else = &nelif
-				n = nelif
-			} else {
-				break
-			}
-		}
-
-		if p.hasNextToken(TElse) {
-			nelse := NodeIf{}
-			nelse.Body = p.list(0)
-			n.Else = &nelse
-		}
-
-		p.expect(TFi)
-		returnNode = *ifHead
+		returnNode = parseIf(p)
 	case TWhile, TUntil:
 		n := NodeLoop{}
 		if tok.Tok == TWhile {
 			n.IsWhile = true
 		}
 
-		n.Condition = p.list(0)
+		n.Condition = p.list(IgnoreNewlines)
 		p.expect(TDo)
-		n.Body = p.list(0)
+		n.Body = p.list(IgnoreNewlines)
 		p.expect(TDone)
 
 		returnNode = n
@@ -240,7 +218,7 @@ func (p *Parser) command() Node {
 		n.LoopVar = tok.Val
 
 		p.lexer.CheckAlias = true
-		p.lexer.CheckNewline = false
+		p.lexer.IgnoreNewlines = false
 		p.lexer.CheckKeyword = true
 
 		// Only deal with in blah for now.
@@ -256,77 +234,17 @@ func (p *Parser) command() Node {
 		}
 
 		p.lexer.CheckAlias = true
-		p.lexer.CheckNewline = true
+		p.lexer.IgnoreNewlines = true
 		p.lexer.CheckKeyword = true
 
 		p.expect(TDo)
-		n.Body = p.list(0)
+		n.Body = p.list(IgnoreNewlines)
 		p.expect(TDone)
 		returnNode = n
 	case TCase:
-		n := NodeCase{Cases: []NodeCaseList{}}
-		tok = p.next()
-		if tok.Tok != TWord {
-			logex.Panic("Expected an expression after case")
-		}
-		n.Expr = Arg{Raw: tok.Val, Subs: tok.Subs}
-
-		p.lexer.CheckAlias = true
-		p.lexer.CheckNewline = true
-		p.lexer.CheckKeyword = true
-		p.expect(TIn)
-
-		for {
-			p.lexer.CheckAlias = false
-			p.lexer.CheckNewline = true
-			p.lexer.CheckKeyword = true
-			tok = p.next()
-			if tok.Tok == TEsac {
-				break
-			}
-			if tok.Tok == TLeftParen {
-				p.lexer.CheckAlias = false
-				p.lexer.CheckNewline = true
-				p.lexer.CheckKeyword = true
-				tok = p.next()
-				// Consume LeftParen if it exists
-				logex.Debug("Consume left Paren")
-			}
-			ncl := NodeCaseList{Patterns: []Arg{}}
-
-			for {
-				ncl.Patterns = append(ncl.Patterns, Arg{Raw: tok.Val, Subs: tok.Subs})
-				if p.hasNextToken(TPipe) {
-					tok = p.next()
-				} else {
-					break
-				}
-			}
-			logex.Pretty(ncl)
-			p.expect(TRightParen)
-			ncl.Body = p.list(2)
-
-			n.Cases = append(n.Cases, ncl)
-
-			p.lexer.CheckAlias = false
-			p.lexer.CheckNewline = true
-			p.lexer.CheckKeyword = true
-			tok = p.next()
-			if tok.Tok == TEsac {
-				p.lexer.CheckNewline = false
-				break
-			} else if tok.Tok == TEndCase {
-				continue
-			} else {
-				ExitShellWithMessage(
-					ExitFailure,
-					fmt.Sprintf("Expected ';;' or 'esac' on line %d", tok.LineNo),
-				)
-			}
-		}
-		returnNode = n
+		returnNode = parseCase(p)
 	case TBegin:
-		returnNode = p.list(0)
+		returnNode = p.list(IgnoreNewlines)
 		p.expect(TEnd)
 	case TWord:
 		p.backup()
@@ -346,7 +264,7 @@ func (p *Parser) simpleCommand() NodeCommand {
 	assignmentAllowed := true
 
 	p.lexer.CheckAlias = true
-	p.lexer.CheckNewline = false
+	p.lexer.IgnoreNewlines = false
 	p.lexer.CheckKeyword = false
 
 OuterLoop:
@@ -372,5 +290,108 @@ OuterLoop:
 	n.Args = args
 	n.LineNo = startLine
 	logex.Debugf("Exit\n")
+	return n
+}
+
+func parseIf(p *Parser) Node {
+	n := NodeIf{}
+	ifHead := &n
+
+	p.lexer.IgnoreNewlines = true
+	ifCondition := p.list(IgnoreNewlines)
+	n.Condition = &ifCondition
+	p.expect(TThen)
+	n.Body = p.list(IgnoreNewlines)
+
+	for {
+		if !p.hasNextToken(TElif) {
+			break
+		}
+		nelif := NodeIf{}
+
+		p.lexer.IgnoreNewlines = true
+		ifCondition = p.list(IgnoreNewlines)
+		nelif.Condition = &ifCondition
+		p.expect(TThen)
+		nelif.Body = p.list(IgnoreNewlines)
+
+		n.Else = &nelif
+		n = nelif
+	}
+
+	if p.hasNextToken(TElse) {
+		nelse := NodeIf{}
+		nelse.Body = p.list(IgnoreNewlines)
+		n.Else = &nelse
+	}
+
+	p.expect(TFi)
+	return *ifHead
+}
+
+func parseCase(p *Parser) Node {
+	n := NodeCase{Cases: []NodeCaseList{}}
+
+	// case <expr> in
+	tok := p.next()
+	if tok.Tok != TWord {
+		logex.Panic("Expected an expression after case")
+	}
+	n.Expr = Arg{Raw: tok.Val, Subs: tok.Subs}
+
+	p.lexer.CheckAlias = true
+	p.lexer.IgnoreNewlines = true
+	p.lexer.CheckKeyword = true
+	p.expect(TIn)
+
+	for {
+		p.lexer.CheckAlias = false
+		p.lexer.IgnoreNewlines = true
+		p.lexer.CheckKeyword = true
+		tok = p.next()
+		if tok.Tok == TEsac {
+			break
+		}
+
+		// Optional left bracket before patterns
+		if tok.Tok == TLeftParen {
+			p.lexer.CheckAlias = false
+			p.lexer.IgnoreNewlines = true
+			p.lexer.CheckKeyword = true
+			tok = p.next()
+		}
+
+		ncl := NodeCaseList{Patterns: []Arg{}}
+		for {
+			// We always have one pattern so keep appending while the
+			// next character is the pattern seperator TPipe
+			ncl.Patterns = append(ncl.Patterns, Arg{Raw: tok.Val, Subs: tok.Subs})
+			if !p.hasNextToken(TPipe) {
+				break
+			}
+			tok = p.next()
+		}
+		p.expect(TRightParen)
+		ncl.Body = p.list(AllowEmptyNode)
+
+		n.Cases = append(n.Cases, ncl)
+
+		p.lexer.CheckAlias = false
+		p.lexer.IgnoreNewlines = true
+		p.lexer.CheckKeyword = true
+		tok = p.next()
+		if tok.Tok == TEsac {
+			p.lexer.IgnoreNewlines = false
+			break
+		} else if tok.Tok == TEndCase {
+			continue
+		} else {
+			ExitShellWithMessage(
+				ExitFailure,
+				fmt.Sprintf("Expected ';;' or 'esac' on line %d", tok.LineNo),
+			)
+		}
+	}
+
 	return n
 }

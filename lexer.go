@@ -47,7 +47,7 @@ type Lexer struct {
 	subs          []Substitution
 	subReturnFunc StateFn
 
-	CheckNewline bool
+	IgnoreNewlines bool
 	CheckAlias   bool
 	CheckKeyword bool
 }
@@ -59,7 +59,7 @@ func NewLexer(input string) *Lexer {
 		itemChan:     make(chan LexItem),
 		subs:         []Substitution{},
 		lineNo:       1,
-		CheckNewline: false,
+		IgnoreNewlines: false,
 		CheckAlias:   true,
 		CheckKeyword: true,
 	}
@@ -127,14 +127,14 @@ func (l *Lexer) ignore() {
 func (l *Lexer) NextLexItem() (li LexItem) {
 	defer func() {
 		l.CheckAlias = false
-		l.CheckNewline = false
+		l.IgnoreNewlines = false
 		l.CheckKeyword = false
 
 		logex.Pretty(li, li.Tok.String())
 	}()
 	li = <-l.itemChan
 
-	if l.CheckNewline {
+	if l.IgnoreNewlines {
 		for li.Tok == TNewLine {
 			li = <-l.itemChan
 		}
@@ -290,15 +290,11 @@ func lexSubstitution(l *Lexer) StateFn {
 func lexVariableSimple(l *Lexer) StateFn {
 	// When we enter this state we know we have at least one readable
 	// char for the varname. That means that any character not valid
-	// in the varname just terminates the parsing and we dont have to
+	// just terminates the parsing and we dont have to
 	// worry about the case of an empty varname
 	l.buf.WriteRune(SentinalSubstitution)
 	sv := SubVariable{SubType: VarSubNormal}
 	varbuf := bytes.Buffer{}
-	defer func() {
-		sv.VarName = varbuf.String()
-		l.subs = append(l.subs, sv)
-	}()
 
 	c := l.next()
 	switch {
@@ -326,6 +322,8 @@ func lexVariableSimple(l *Lexer) StateFn {
 		l.backup()
 	}
 
+	sv.VarName = varbuf.String()
+	l.subs = append(l.subs, sv)
 	return l.subReturnFunc
 }
 func lexVariableComplex(l *Lexer) StateFn {
@@ -333,7 +331,9 @@ func lexVariableComplex(l *Lexer) StateFn {
 	l.buf.WriteRune(SentinalSubstitution)
 	sv := SubVariable{}
 	varbuf := bytes.Buffer{}
+
 	defer func() {
+		// We defer this as there are multiple return points
 		sv.VarName = varbuf.String()
 		l.subs = append(l.subs, sv)
 	}()
@@ -484,6 +484,17 @@ func lexDoubleQuote(l *Lexer) StateFn {
 			return lexSubstitution
 		case '"':
 			return lexWord
+		case '\\':
+			c = l.next()
+			switch c {
+			case '\n':
+				// Ignored
+			case '\\', '$', '`', '"':
+				l.buf.WriteRune(c)
+			default:
+				l.backup()
+				l.buf.WriteRune('\\')
+			}
 		default:
 			l.buf.WriteRune(c)
 		}
