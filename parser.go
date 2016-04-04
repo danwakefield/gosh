@@ -174,10 +174,15 @@ func (p *Parser) pipeline() Node {
 	}
 
 	returnNode := p.command()
-	// if p.hasNextToken(TPipe)
-	// add commands to the pipeline.
-	// Maybe change Eval signature so we can pass IO redirs through to
-	// NodeCommand.
+
+	if p.hasNextToken(TPipe) {
+		returnNode = NodePipe{}
+		for {
+			if !p.hasNextToken(TPipe) {
+				break
+			}
+		}
+	}
 
 	if negate {
 		return NodeNegate{N: returnNode}
@@ -210,37 +215,7 @@ func (p *Parser) command() Node {
 
 		returnNode = n
 	case TFor:
-		tok = p.next()
-		if tok.Tok != TWord || tok.Quoted || !variables.IsGoodName(tok.Val) {
-			logex.Panic(fmt.Sprintf("Bad for loop variable name: '%s'", tok.Val))
-		}
-		n := NodeFor{Args: []Arg{}}
-		n.LoopVar = tok.Val
-
-		p.lexer.CheckAlias = true
-		p.lexer.IgnoreNewlines = false
-		p.lexer.CheckKeyword = true
-
-		// Only deal with in blah for now.
-		p.expect(TIn)
-		for {
-			tok = p.next()
-			if tok.Tok != TWord {
-				p.backup()
-				p.expect(TNewLine, TSemicolon)
-				break
-			}
-			n.Args = append(n.Args, Arg{Raw: tok.Val, Subs: tok.Subs})
-		}
-
-		p.lexer.CheckAlias = true
-		p.lexer.IgnoreNewlines = true
-		p.lexer.CheckKeyword = true
-
-		p.expect(TDo)
-		n.Body = p.list(IgnoreNewlines)
-		p.expect(TDone)
-		returnNode = n
+		returnNode = parseFor(p)
 	case TCase:
 		returnNode = parseCase(p)
 	case TBegin:
@@ -349,12 +324,11 @@ func parseCase(p *Parser) Node {
 		p.lexer.IgnoreNewlines = true
 		p.lexer.CheckKeyword = true
 		tok = p.next()
+
 		if tok.Tok == TEsac {
 			break
-		}
-
-		// Optional left bracket before patterns
-		if tok.Tok == TLeftParen {
+		} else if tok.Tok == TLeftParen {
+			// Optional left bracket before patterns
 			p.lexer.CheckAlias = false
 			p.lexer.IgnoreNewlines = true
 			p.lexer.CheckKeyword = true
@@ -380,6 +354,7 @@ func parseCase(p *Parser) Node {
 		p.lexer.IgnoreNewlines = true
 		p.lexer.CheckKeyword = true
 		tok = p.next()
+
 		if tok.Tok == TEsac {
 			p.lexer.IgnoreNewlines = false
 			break
@@ -392,6 +367,42 @@ func parseCase(p *Parser) Node {
 			)
 		}
 	}
+
+	return n
+}
+
+func parseFor(p *Parser) Node {
+	tok := p.next()
+	if tok.Tok != TWord || tok.Quoted || !variables.IsGoodName(tok.Val) {
+		logex.Panic(fmt.Sprintf("Bad for loop variable name: '%s'", tok.Val))
+	}
+
+	n := NodeFor{Args: []Arg{}}
+	n.LoopVar = tok.Val
+
+	p.lexer.CheckAlias = true
+	p.lexer.IgnoreNewlines = false
+	p.lexer.CheckKeyword = true
+
+	// Only deal with in blah for now.
+	p.expect(TIn)
+	for {
+		tok = p.next()
+		if tok.Tok != TWord {
+			p.backup()
+			p.expect(TNewLine, TSemicolon)
+			break
+		}
+		n.Args = append(n.Args, Arg{Raw: tok.Val, Subs: tok.Subs})
+	}
+
+	p.lexer.CheckAlias = true
+	p.lexer.IgnoreNewlines = true
+	p.lexer.CheckKeyword = true
+
+	p.expect(TDo)
+	n.Body = p.list(IgnoreNewlines)
+	p.expect(TDone)
 
 	return n
 }

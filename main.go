@@ -20,6 +20,8 @@ func main() {
 	scp := variables.NewScope()
 	ex := ExitSuccess
 
+	stdIO := &IOContainer{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
+
 	for {
 		n := p.Parse()
 		if n == nil {
@@ -31,6 +33,6 @@ func main() {
 			os.Exit(int(ex))
 		}
 
-		ex = n.Eval(scp)
+		ex = n.Eval(scp, stdIO)
 	}
 }

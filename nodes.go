@@ -59,8 +59,14 @@ func (a Arg) Expand(scp *variables.Scope) (returnString string) {
 	return strings.Join(x, "")
 }
 
+type IOContainer struct {
+	In  *os.File
+	Out *os.File
+	Err *os.File
+}
+
 type Node interface {
-	Eval(*variables.Scope) ExitStatus
+	Eval(*variables.Scope, *IOContainer) ExitStatus
 }
 
 // NodeEOF is end of file sentinal node.
@@ -69,17 +75,17 @@ type NodeEOF struct{}
 // Eval is required to fufill the Node interface but the return value in this
 // case is useless. NodeEOF should be checked for seperately to terminate
 // execution.
-func (NodeEOF) Eval(*variables.Scope) ExitStatus { return ExitSuccess }
+func (NodeEOF) Eval(*variables.Scope, *IOContainer) ExitStatus { return ExitSuccess }
 
 type NodeList []Node
 
 // Eval calls Eval on the Nodes contained in the list and returns the
 // ExitStatus of the last command.
-func (n NodeList) Eval(scp *variables.Scope) ExitStatus {
+func (n NodeList) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
 	returnExit := ExitSuccess
 
 	for _, x := range n {
-		returnExit = x.Eval(scp)
+		returnExit = x.Eval(scp, io)
 	}
 
 	return returnExit
@@ -90,10 +96,10 @@ type NodeBinary struct {
 	IsAnd       bool
 }
 
-func (n NodeBinary) Eval(scp *variables.Scope) ExitStatus {
+func (n NodeBinary) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
 	var runRight bool
 
-	leftExit := n.Left.Eval(scp)
+	leftExit := n.Left.Eval(scp, io)
 	if n.IsAnd {
 		runRight = leftExit == ExitSuccess
 	} else {
@@ -101,7 +107,7 @@ func (n NodeBinary) Eval(scp *variables.Scope) ExitStatus {
 	}
 
 	if runRight {
-		return n.Right.Eval(scp)
+		return n.Right.Eval(scp, io)
 	}
 
 	return leftExit
@@ -112,8 +118,8 @@ type NodeNegate struct {
 	N Node
 }
 
-func (n NodeNegate) Eval(scp *variables.Scope) ExitStatus {
-	ex := n.N.Eval(scp)
+func (n NodeNegate) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
+	ex := n.N.Eval(scp, io)
 	// Any Non-zero ExitStatus is a failure so we only check for success
 	if ex == ExitSuccess {
 		return ExitFailure
@@ -127,12 +133,12 @@ type NodeLoop struct {
 	Body      Node
 }
 
-func (n NodeLoop) Eval(scp *variables.Scope) ExitStatus {
+func (n NodeLoop) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
 	var runBody bool
 	returnExit := ExitSuccess
 
 	for {
-		condExit := n.Condition.Eval(scp)
+		condExit := n.Condition.Eval(scp, io)
 		if n.IsWhile {
 			runBody = condExit == ExitSuccess
 		} else { // Until
@@ -140,7 +146,7 @@ func (n NodeLoop) Eval(scp *variables.Scope) ExitStatus {
 		}
 
 		if runBody {
-			returnExit = n.Body.Eval(scp)
+			returnExit = n.Body.Eval(scp, io)
 		} else {
 			break
 		}
@@ -155,7 +161,7 @@ type NodeFor struct {
 	Body    Node
 }
 
-func (n NodeFor) Eval(scp *variables.Scope) ExitStatus {
+func (n NodeFor) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
 	returnExit := ExitSuccess
 
 	expandedArgs := make([]string, len(n.Args))
@@ -167,7 +173,7 @@ func (n NodeFor) Eval(scp *variables.Scope) ExitStatus {
 
 	for _, arg := range expandedArgs {
 		scp.Set(n.LoopVar, arg)
-		returnExit = n.Body.Eval(scp)
+		returnExit = n.Body.Eval(scp, io)
 	}
 
 	return returnExit
@@ -183,19 +189,19 @@ type NodeIf struct {
 	Body      Node
 }
 
-func (n NodeIf) Eval(scp *variables.Scope) ExitStatus {
+func (n NodeIf) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
 	logex.Debug("Entered if")
 	if n.Condition == nil {
-		return n.Body.Eval(scp)
+		return n.Body.Eval(scp, io)
 	}
 
-	runBody := (*n.Condition).Eval(scp)
+	runBody := (*n.Condition).Eval(scp, io)
 	if runBody == ExitSuccess {
-		return n.Body.Eval(scp)
+		return n.Body.Eval(scp, io)
 	}
 
 	if n.Else != nil {
-		return n.Else.Eval(scp)
+		return n.Else.Eval(scp, io)
 	}
 
 	return ExitSuccess
@@ -207,7 +213,7 @@ type NodeCommand struct {
 	LineNo int
 }
 
-func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
+func (n NodeCommand) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
 	logex.Pretty(n)
 	// A line with only assignments applies them to the Root Scope
 	// We check this first to avoid unnecessary scope Push/Pop's
@@ -237,8 +243,9 @@ func (n NodeCommand) Eval(scp *variables.Scope) ExitStatus {
 	env := scp.Environ()
 	cmd := exec.Command(expandedArgs[0], expandedArgs[1:]...)
 	cmd.Env = env
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = io.In
+	cmd.Stdout = io.Out
+	cmd.Stderr = io.Err
 
 	logex.Info("========ENV======")
 	logex.Pretty(env)
@@ -262,8 +269,8 @@ type NodeCaseList struct {
 	Body     Node
 }
 
-func (n NodeCaseList) Eval(scp *variables.Scope) ExitStatus {
-	return n.Body.Eval(scp)
+func (n NodeCaseList) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
+	return n.Body.Eval(scp, io)
 }
 
 func (n NodeCaseList) Matches(s string, scp *variables.Scope) bool {
@@ -282,12 +289,12 @@ type NodeCase struct {
 	Cases []NodeCaseList
 }
 
-func (n NodeCase) Eval(scp *variables.Scope) ExitStatus {
+func (n NodeCase) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
 	expandedExpr := n.Expr.Expand(scp)
 
 	for _, c := range n.Cases {
 		if c.Matches(expandedExpr, scp) {
-			return c.Eval(scp)
+			return c.Eval(scp, io)
 		}
 	}
 	return ExitSuccess
@@ -298,7 +305,7 @@ type NodePipe struct {
 	Commands   NodeList
 }
 
-func (n NodePipe) Eval(scp *variables.Scope) ExitStatus {
+func (n NodePipe) Eval(scp *variables.Scope, io *IOContainer) ExitStatus {
 	returnExit := ExitSuccess
 
 	return returnExit
