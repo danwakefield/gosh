@@ -1,0 +1,2 @@
+echo "Should print SUCCESS twice"
+echo "SUXXESS" | tr X C | tee -

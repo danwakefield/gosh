@@ -176,12 +176,19 @@ func (p *Parser) pipeline() Node {
 	returnNode := p.command()
 
 	if p.hasNextToken(TPipe) {
-		returnNode = NodePipe{}
+		n := NodePipe{Commands: NodeList{returnNode}}
+
 		for {
+			p.lexer.CheckAlias = true
+			p.lexer.IgnoreNewlines = true
+			p.lexer.CheckKeyword = true
+			n.Commands = append(n.Commands, p.command())
+
 			if !p.hasNextToken(TPipe) {
 				break
 			}
 		}
+		returnNode = n
 	}
 
 	if negate {

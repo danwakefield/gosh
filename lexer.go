@@ -48,20 +48,20 @@ type Lexer struct {
 	subReturnFunc StateFn
 
 	IgnoreNewlines bool
-	CheckAlias   bool
-	CheckKeyword bool
+	CheckAlias     bool
+	CheckKeyword   bool
 }
 
 func NewLexer(input string) *Lexer {
 	l := &Lexer{
-		input:        input,
-		inputLen:     len(input),
-		itemChan:     make(chan LexItem),
-		subs:         []Substitution{},
-		lineNo:       1,
+		input:          input,
+		inputLen:       len(input),
+		itemChan:       make(chan LexItem),
+		subs:           []Substitution{},
+		lineNo:         1,
 		IgnoreNewlines: false,
-		CheckAlias:   true,
-		CheckKeyword: true,
+		CheckAlias:     true,
+		CheckKeyword:   true,
 	}
 	go l.run()
 	return l
@@ -487,8 +487,7 @@ func lexDoubleQuote(l *Lexer) StateFn {
 		case '\\':
 			c = l.next()
 			switch c {
-			case '\n':
-				// Ignored
+			case '\n': // Ignored
 			case '\\', '$', '`', '"':
 				l.buf.WriteRune(c)
 			default:
