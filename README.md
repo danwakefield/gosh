@@ -5,7 +5,7 @@ The aim of GOSH is to create a POSIX compliant shell runtime using a modern type
 
 # TODO
 - [x] Pipeline Support - Requires changes to eval signature for passing IO redirections
-- [ ] Redirections - Generic redirections to and from files, fd's, etc.
+- [ ] Redirections - Generic redirections to and from files, fd's, sockets etc.
 - [ ] Background / Async commands - Should be quite easy just run Eval in goroutine and return ExitSuccess
 - [ ] Functions - Requires variables.Scope to be updated to be a more generic store I.e not just variables but func / aliases
 - [ ] Shebang - Preparse first line of a file.
