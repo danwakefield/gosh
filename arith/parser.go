@@ -58,10 +58,11 @@ func Parse(input string, scp *variables.Scope) (i int64, err error) {
 }
 
 type Parser struct {
-	lastNode  ArithNode
-	lastToken Token
-	lexer     *Lexer
-	scope     *variables.Scope
+	lastNode         ArithNode
+	lastToken        Token
+	lexer            *Lexer
+	scope            *variables.Scope
+	blockAssignments bool
 }
 
 func (p *Parser) expression(rbp int) int64 {
@@ -128,8 +129,10 @@ func (p *Parser) getVariable(name string) int64 {
 	return i
 }
 
-func (ap *Parser) setVariable(name string, val int64) {
-	ap.scope.Set(name, strconv.FormatInt(val, 10))
+func (p *Parser) setVariable(name string, val int64) {
+	if !p.blockAssignments {
+		p.scope.Set(name, strconv.FormatInt(val, 10))
+	}
 }
 
 // IsArithBinaryOp checks if a token operates on two values.
@@ -348,8 +351,7 @@ func (n PrefixNode) led(int64, *Parser) int64 {
 func (n PrefixNode) lbp() int { return LbpValues[n.Tok] }
 
 type TernaryNode struct {
-	condition         int64
-	valTrue, valFalse int64
+	condition int64
 }
 
 func (n TernaryNode) nud(*Parser) int64 { panic("Nud called on TernaryNode") }
@@ -362,35 +364,40 @@ func (n TernaryNode) led(left int64, p *Parser) int64 {
 	   else
 	      return c
 	   See the ISO C Standard Section 6.5.15
-
-	   BUG
-	   This function evaluates both sides of the ternary no matter
-	   what the condition is.
-	   This introduces bugs when assignment operators are used alongside
-	   the ternary.
-	   E.g
-	    (0 ? x += 2 : x += 2)
-	   will assign x = 4
-	   The replaced value will also be 4 so
-	    (1 + (0 ? x += 2 : x += 2)) == 5
-
-	    (y ? x = 3 : x = 4)
-	   will make x = 4 regardless of the value of y
-
-	   Creating a Q of lexed tokens while blocking assignments then
-	   replaying the tokens for the section that should be evaluted
-	   should fix this.
 	*/
 
 	n.condition = left
-	n.valTrue = p.expression(0)
-	p.consume(ArithColon)
-	n.valFalse = p.expression(0)
 
+	p.blockAssignments = true
+	// We capture the lexer positions and lastNode before each expression so we can
+	// rewind, get the correct value and return to the end of the ternary
+	pos1 := p.lexer.pos
+	ln1 := p.lastNode
+	p.expression(0)
+
+	p.consume(ArithColon)
+
+	pos2 := p.lexer.pos
+	ln2 := p.lastNode
+	p.expression(0)
+	pos3 := p.lexer.pos
+	ln3 := p.lastNode
+
+	var returnVal int64
+	p.blockAssignments = false
 	if n.condition != 0 {
-		return n.valTrue
+		p.lexer.pos = pos1
+		p.lastNode = ln1
+		returnVal = p.expression(0)
+	} else {
+		p.lexer.pos = pos2
+		p.lastNode = ln2
+		returnVal = p.expression(0)
 	}
-	return n.valFalse
+	p.lexer.pos = pos3
+	p.lastNode = ln3
+
+	return returnVal
 }
 func (n TernaryNode) lbp() int {
 	return 20

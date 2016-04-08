@@ -56,6 +56,9 @@ func (a Arg) Expand(scp *variables.Scope) (returnString string) {
 		}
 	}
 
+	// XXX: Do FNmatch pathname expansion here.
+	// see `man 7 glob` for details. Key point is that is the expansion
+	// has no files it should be returned as is.
 	return strings.Join(x, "")
 }
 
@@ -91,6 +94,7 @@ func (n NodeList) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 	return returnExit
 }
 
+// NodeBinary is used to chain nodes conditionally
 type NodeBinary struct {
 	Left, Right Node
 	IsAnd       bool
@@ -311,12 +315,11 @@ type NodePipe struct {
 }
 
 func (n NodePipe) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
-	returnExit := ExitSuccess
-
-	cmd := n.Commands[0]
 	lastPipeReader, pipeWriter := io.Pipe()
 
+	cmd := n.Commands[0]
 	go cmd.Eval(scp, &IOContainer{In: ioc.In, Out: pipeWriter, Err: ioc.Err})
+
 	for _, cmd = range n.Commands[1 : len(n.Commands)-1] {
 		pipeReader, pipeWriter := io.Pipe()
 		go cmd.Eval(scp, &IOContainer{In: lastPipeReader, Out: pipeWriter, Err: ioc.Err})
@@ -324,11 +327,10 @@ func (n NodePipe) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 	}
 
 	cmd = n.Commands[len(n.Commands)-1]
-	if n.Background {
-		go cmd.Eval(scp, &IOContainer{In: lastPipeReader, Out: ioc.Out, Err: ioc.Err})
-	} else {
+	if !n.Background {
 		return cmd.Eval(scp, &IOContainer{In: lastPipeReader, Out: ioc.Out, Err: ioc.Err})
 	}
 
-	return returnExit
+	go cmd.Eval(scp, &IOContainer{In: lastPipeReader, Out: ioc.Out, Err: ioc.Err})
+	return ExitSuccess
 }
