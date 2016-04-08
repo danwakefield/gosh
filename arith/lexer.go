@@ -112,83 +112,8 @@ func (l *Lexer) Lex() (Token, interface{}) {
 		return ArithEOF, nil
 	}
 
-	// Finds Numeric constants.
 	if char.IsDigit(c) {
-		// Special case for Hex (0xff) and Octal (0777) constants
-		if c == '0' {
-			// Hex constants
-			if l.hasNext('x') || l.hasNext('X') {
-				startPos = l.pos
-				endPos = l.pos
-				for {
-					//Find the end of the constant
-					if l.hasNextFunc(char.IsHexDigit) {
-						endPos++
-					} else {
-						//Check if the number is invalid.
-						//We already know the next rune is not a hex digit
-						if char.IsInVarName(l.peek()) {
-							return ArithError, LexError{
-								X:   l.input[startPos-2 : endPos+1],
-								Err: ErrHexConstant,
-							}
-						}
-						break
-					}
-				}
-				parsedVal, err := strconv.ParseInt(l.input[startPos:endPos], 16, 64)
-				if err != nil {
-					panic("Not Reached: Broken Hex Constant")
-				}
-				return ArithNumber, parsedVal
-			}
-			// Octal constants
-			if l.hasNextFunc(char.IsOctalDigit) {
-				startPos = l.pos - l.lastRuneWidth
-				endPos = l.pos
-				for {
-					if l.hasNextFunc(char.IsOctalDigit) {
-						endPos++
-					} else {
-						if char.IsInVarName(l.peek()) {
-							return ArithError, LexError{
-								X:   l.input[startPos-1 : endPos+1],
-								Err: ErrOctalConstant,
-							}
-						}
-						break
-					}
-				}
-				parsedVal, err := strconv.ParseInt(l.input[startPos:endPos], 8, 64)
-				if err != nil {
-					panic("Not Reached: Broken Octal Constant")
-				}
-				return ArithNumber, parsedVal
-			}
-
-			// Simple Zero constant
-			return ArithNumber, int64(0)
-		}
-		startPos = l.pos - l.lastRuneWidth
-		endPos = l.pos
-		for {
-			if l.hasNextFunc(char.IsDigit) {
-				endPos++
-			} else {
-				if char.IsFirstInVarName(l.peek()) {
-					return ArithError, LexError{
-						X:   l.input[startPos : endPos+1],
-						Err: ErrDecimalConstant,
-					}
-				}
-				break
-			}
-		}
-		parsedVal, err := strconv.ParseInt(l.input[startPos:endPos], 10, 64)
-		if err != nil {
-			panic("Not Reached: Broken Decimal Constant")
-		}
-		return ArithNumber, parsedVal
+		return lexDigit(l, c)
 	}
 
 	// Finds variable names.
@@ -293,4 +218,85 @@ func (l *Lexer) Lex() (Token, interface{}) {
 	}
 
 	return t, nil
+}
+
+func lexDigit(l *Lexer, c rune) (Token, interface{}) {
+	if c == '0' { // Special case for Hex (0xff) and Octal (0777) constants
+		if l.hasNext('x') || l.hasNext('X') {
+			return lexHexConstant(l)
+		} else if l.hasNextFunc(char.IsOctalDigit) {
+			return lexOctalConstant(l)
+		}
+		// Simple Zero constant
+		return ArithNumber, int64(0)
+	}
+	startPos := l.pos - l.lastRuneWidth
+	endPos := l.pos
+	for {
+		if l.hasNextFunc(char.IsDigit) {
+			endPos++
+		} else {
+			if char.IsFirstInVarName(l.peek()) {
+				return ArithError, LexError{
+					X:   l.input[startPos : endPos+1],
+					Err: ErrDecimalConstant,
+				}
+			}
+			break
+		}
+	}
+	parsedVal, err := strconv.ParseInt(l.input[startPos:endPos], 10, 64)
+	if err != nil {
+		panic("Not Reached: Broken Decimal Constant")
+	}
+	return ArithNumber, parsedVal
+}
+
+func lexHexConstant(l *Lexer) (Token, interface{}) {
+	startPos := l.pos
+	endPos := l.pos
+	for {
+		//Find the end of the constant
+		if l.hasNextFunc(char.IsHexDigit) {
+			endPos++
+		} else {
+			//Check if the number is invalid.
+			//We already know the next rune is not a hex digit
+			if char.IsInVarName(l.peek()) {
+				return ArithError, LexError{
+					X:   l.input[startPos-2 : endPos+1],
+					Err: ErrHexConstant,
+				}
+			}
+			break
+		}
+	}
+	parsedVal, err := strconv.ParseInt(l.input[startPos:endPos], 16, 64)
+	if err != nil {
+		panic("Not Reached: Broken Hex Constant")
+	}
+	return ArithNumber, parsedVal
+}
+
+func lexOctalConstant(l *Lexer) (Token, interface{}) {
+	startPos := l.pos - l.lastRuneWidth
+	endPos := l.pos
+	for {
+		if l.hasNextFunc(char.IsOctalDigit) {
+			endPos++
+		} else {
+			if char.IsInVarName(l.peek()) {
+				return ArithError, LexError{
+					X:   l.input[startPos-1 : endPos+1],
+					Err: ErrOctalConstant,
+				}
+			}
+			break
+		}
+	}
+	parsedVal, err := strconv.ParseInt(l.input[startPos:endPos], 8, 64)
+	if err != nil {
+		panic("Not Reached: Broken Octal Constant")
+	}
+	return ArithNumber, parsedVal
 }

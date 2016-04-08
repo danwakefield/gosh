@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"strconv"
 
+	"gopkg.in/logex.v1"
+
 	"github.com/danwakefield/gosh/variables"
 )
 
@@ -47,6 +49,7 @@ func Parse(input string, scp *variables.Scope) (i int64, err error) {
 			case error:
 				err = ParseError{Err: t}
 			}
+			logex.Error(err)
 		}
 	}()
 	p := &Parser{
@@ -105,6 +108,8 @@ func (p *Parser) next() {
 		p.lastNode = TernaryNode{}
 	case TokenIs(tok, ArithRightParen, ArithColon):
 		p.lastNode = NoopNode{Tok: tok}
+	case TokenIs(tok, ArithError):
+		panic(val)
 	default:
 		panic(ErrUnknownToken)
 	}
@@ -124,7 +129,7 @@ func (p *Parser) getVariable(name string) int64 {
 	// would have to be implemented here somehow
 	i, err := strconv.ParseInt(v.Val, 0, 64)
 	if err != nil {
-		panic("Variable '" + name + "' cannot be used as a number: " + err.Error())
+		return 0
 	}
 	return i
 }
