@@ -22,8 +22,9 @@ const (
 )
 
 type Arg struct {
-	Raw  string
-	Subs []Substitution
+	Raw    string
+	Quoted bool
+	Subs   []Substitution
 }
 
 func (a Arg) Expand(scp *variables.Scope) (returnString string) {

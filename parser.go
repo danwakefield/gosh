@@ -258,7 +258,7 @@ OuterLoop:
 				p.lexer.CheckAlias = false
 			} else {
 				assignmentAllowed = false
-				args = append(args, Arg{Raw: tok.Val, Subs: tok.Subs})
+				args = append(args, Arg{Raw: tok.Val, Subs: tok.Subs, Quoted: tok.Quoted})
 			}
 		default:
 			p.backup()
@@ -319,7 +319,7 @@ func parseCase(p *Parser) Node {
 	if tok.Tok != TWord {
 		logex.Panic("Expected an expression after case")
 	}
-	n.Expr = Arg{Raw: tok.Val, Subs: tok.Subs}
+	n.Expr = Arg{Raw: tok.Val, Subs: tok.Subs, Quoted: tok.Quoted}
 
 	p.lexer.CheckAlias = true
 	p.lexer.IgnoreNewlines = true
@@ -400,7 +400,7 @@ func parseFor(p *Parser) Node {
 			p.expect(TNewLine, TSemicolon)
 			break
 		}
-		n.Args = append(n.Args, Arg{Raw: tok.Val, Subs: tok.Subs})
+		n.Args = append(n.Args, Arg{Raw: tok.Val, Subs: tok.Subs, Quoted: tok.Quoted})
 	}
 
 	p.lexer.CheckAlias = true
