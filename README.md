@@ -1,7 +1,13 @@
 # gosh
-Go Shell. Final year project at Aberystwyth University.
-The aim of GOSH is to create a POSIX compliant shell runtime using a modern type safe language
+An attempt at a POSIX compliant shell in Golang.
+[![Build Status](https://drone.io/github.com/Danwakefield/gosh/status.png)](https://drone.io/github.com/Danwakefield/gosh/latest)
 
+Currently only supports script files and lacks some important shell features like redirections, subshells and nested variables in some cases.
+
+See the test-files folder for more examples of what currently works.
+
+## License
+Gosh is licensed under MIT.
 
 # TODO
 - [x] Pipeline Support - Requires changes to eval signature for passing IO redirections

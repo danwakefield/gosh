@@ -15,9 +15,10 @@ type Parser struct {
 }
 
 func NewParser(input string) *Parser {
-	return &Parser{
-		lexer: NewLexer(input),
-	}
+	p := &Parser{}
+	l := NewLexer(input, p)
+	p.lexer = l
+	return p
 }
 
 func (p *Parser) next() LexItem {
@@ -90,8 +91,6 @@ const (
 )
 
 func (p *Parser) list(nlf NewlineFlag) Node {
-	// TODO: Change newlineFlag to be self documenting.
-	// Actually pass in something descriptive
 	logex.Debugf("Enter '%d'\n", nlf)
 	defer logex.Debug("Exit\n")
 	nodes := NodeList{}

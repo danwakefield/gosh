@@ -46,13 +46,15 @@ type Lexer struct {
 	quoted        bool
 	subs          []Substitution
 	subReturnFunc StateFn
+	lexDepth      int
 
+	Parser         *Parser
 	IgnoreNewlines bool
 	CheckAlias     bool
 	CheckKeyword   bool
 }
 
-func NewLexer(input string) *Lexer {
+func NewLexer(input string, p *Parser) *Lexer {
 	l := &Lexer{
 		input:          input,
 		inputLen:       len(input),
@@ -62,8 +64,9 @@ func NewLexer(input string) *Lexer {
 		IgnoreNewlines: false,
 		CheckAlias:     true,
 		CheckKeyword:   true,
+		Parser:         p,
 	}
-	go l.run()
+	go l.run(true)
 	return l
 }
 
@@ -113,11 +116,15 @@ func (l *Lexer) hasNext(r rune) bool {
 	return false
 }
 
-func (l *Lexer) run() {
+func (l *Lexer) run(closeChan bool) {
+	l.lexDepth++
+	defer func() { l.lexDepth-- }()
 	for l.state = lexStart; l.state != nil; {
 		l.state = l.state(l)
 	}
-	close(l.itemChan)
+	if closeChan {
+		close(l.itemChan)
+	}
 }
 
 func (l *Lexer) ignore() {
@@ -215,6 +222,11 @@ func lexStart(l *Lexer) StateFn {
 			l.emit(TLeftParen)
 		case ')':
 			l.emit(TRightParen)
+			// To account for subshell parsing we have to special case
+			// the RightParen as an EOF token.
+			if l.lexDepth > 1 {
+				return nil
+			}
 		}
 	}
 }
@@ -437,7 +449,20 @@ func lexBackQuote(l *Lexer) StateFn {
 	return nil
 }
 func lexSubshell(l *Lexer) StateFn {
+	// XXX: Emit Start Subshell here and move to stateStart.
+	// Print Sentinal Substitution, create a parser with input[pos:],
+	//
+	// Parser then collects emitted nodes until it hits a lone TRightParen
+	// which should end list? Create su
 	logex.Panic("Not Implemented")
+	saveLexerState := *l
+	saveBuf := l.buf.String()
+
+	_ = saveLexerState
+	_ = saveBuf
+
+	l.state = lexStart
+
 	return nil
 }
 func lexArith(l *Lexer) StateFn {

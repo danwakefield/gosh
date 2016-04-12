@@ -37,9 +37,9 @@ for f in $(ls -1 *.gosh); do
 	if [ "$?" -ne 0 ]; then
 		echo "Gosh running '$f' differs from the golden file."
 		echo "Run the below commands to see how"
-		echo "cat $TEST_DIR/$GOLDEN"
+		echo "cat $GOLDEN"
 		echo "echo '======='"
-		echo "$GOSH_DIR/gosh $TEST_DIR/$f"
+		echo "../gosh ./$f"
 		exit 1
 	fi
 done

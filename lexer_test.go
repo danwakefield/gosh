@@ -61,7 +61,8 @@ func TestLex(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		l := NewLexer(c.in)
+		p := &Parser{}
+		l := NewLexer(c.in, p)
 		for count, expectedLexItem := range c.out {
 			got := l.NextLexItem()
 			if reflect.DeepEqual(got, expectedLexItem) {

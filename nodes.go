@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"os/exec"
 	"strings"
@@ -255,7 +256,9 @@ func (n NodeCommand) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 	// This is needed so that pipes will terminate
 	if pw, isPipeWriter := ioc.Out.(*io.PipeWriter); isPipeWriter {
 		defer func() {
-			pw.Close()
+			if err := pw.Close(); err != nil {
+				panic(err) // XXX: Print error to stdout and continue?
+			}
 		}()
 	}
 
@@ -319,7 +322,7 @@ func (n NodePipe) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 	lastPipeReader, pipeWriter := io.Pipe()
 
 	cmd := n.Commands[0]
-	go cmd.Eval(scp, &IOContainer{In: ioc.In, Out: pipeWriter, Err: ioc.Err})
+	go cmd.Eval(scp, &IOContainer{In: &bytes.Buffer{}, Out: pipeWriter, Err: ioc.Err})
 
 	for _, cmd = range n.Commands[1 : len(n.Commands)-1] {
 		pipeReader, pipeWriter := io.Pipe()
