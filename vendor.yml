@@ -1,0 +1,5 @@
+vendors:
+- path: github.com/danwakefield/fnmatch
+  rev: cbb64ac3d964b81592e64f957ad53df015803288
+- path: gopkg.in/logex.v1
+  rev: cd112f618178aaaf4ea8592c8839f5276145d9cf
