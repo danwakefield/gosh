@@ -1,16 +1,20 @@
 #!/bin/bash
 set -uo pipefail
 VERBOSE=1
+CONTINUE_WITH_ERROR=0
 
-while getopts ":v" opt; do
-  case $opt in
-    v)
-      VERBOSE=0
-      ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
-      ;;
-  esac
+while getopts ":vi" opt; do
+	case $opt in
+		v)
+			VERBOSE=0
+			;;
+		i)
+			CONTINUE_WITH_ERROR=1
+			;;
+		\?)
+			echo "Invalid option: -$OPTARG" >&2
+			;;
+	esac
 done
 
 TEST_DIR=$(pwd)
@@ -28,7 +32,7 @@ for f in $(ls -1 *.gosh); do
 	GOLDEN="./golden/${f%.gosh}.golden"
 	if [ ! -e "$GOLDEN" ]; then
 		echo "Missing Golden file: $GOLDEN"
-		exit 1
+		[[ CONTINUE_WITH_ERROR -eq 1 ]] || exit 1
 	fi
 	if [ $VERBOSE -eq 0 ]; then
 		echo "Testing $f"
@@ -40,7 +44,7 @@ for f in $(ls -1 *.gosh); do
 		echo "cat $GOLDEN"
 		echo "echo '======='"
 		echo "../gosh ./$f"
-		exit 1
+		[[ CONTINUE_WITH_ERROR -eq 1 ]] || exit 1
 	fi
 done
 

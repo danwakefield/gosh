@@ -1,26 +1,43 @@
+echo "8 Test cases"
 case a in
-	a) echo "SUCCESS"
+	a) echo "SUCCESS 1"
 	;;
-	b) echo "FAIL"
+	b) echo "FAIL 1"
+	;;
 esac
 
-case b in
-	a) echo "FAIL"
+case a in
+	(a) echo "SUCCESS 2"
 	;;
-	b) echo "SUCCESS"
-esac
-
-case xyz in
-	xyz) echo "SUCCESS"
+	(b) echo "FAIL 2"
 	;;
-	*) echo "FAIL"
 esac
 
 case xyz in
-	*) echo "SUCCESS"
+	xyz) echo "SUCCESS 3"
+	;;
+	*) echo "FAIL 3"
+esac
+
+case xyz in
+	*) echo "SUCCESS 4"
 esac
 
 case bb in
-	[a-c][a-c]) echo "SUCCESS"
+	[a-c][a-c]) echo "SUCCESS 5"
+esac
+
+case 1 in
+	$((y=0)) ) echo "FAIL 6"
 	;;
+	$((y=1)) ) echo "SUCCESS 6"
+esac
+
+case a in
+	x|y|z|a) echo "SUCCESS 7"
+esac
+
+V=abc
+case abc in
+	$V) echo "SUCCESS 8"
 esac
