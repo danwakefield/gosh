@@ -32,7 +32,7 @@ for f in $(ls -1 *.gosh); do
 	GOLDEN="./golden/${f%.gosh}.golden"
 	if [ ! -e "$GOLDEN" ]; then
 		echo "Missing Golden file: $GOLDEN"
-		[[ $CONTINUE_WITH_ERROR -eq 1 ]] || exit 1
+		[[ $CONTINUE_WITH_ERROR -eq 1 ]] && continue || exit 1
 	fi
 	if [ $VERBOSE -eq 0 ]; then
 		echo "Testing $f"

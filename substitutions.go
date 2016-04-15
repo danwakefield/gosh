@@ -53,7 +53,7 @@ const (
 	VarSubLength
 
 	// VarSubSubString, VarSubReplace and VarSubReplaceAll
-	// are not used. The lexer can currently only handle
+	// are not used. The parser can currently only handle
 	// Var subs that use a single arg following the operator symbol
 	VarSubSubString
 	VarSubReplace
