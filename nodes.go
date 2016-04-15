@@ -74,13 +74,14 @@ type Node interface {
 	Eval(*variables.Scope, *IOContainer) ExitStatus
 }
 
-// NodeEOF is end of file sentinal node.
-type NodeEOF struct{}
+type NodeNoop struct{}
 
-// Eval is required to fufill the Node interface but the return value in this
-// case is useless. NodeEOF should be checked for seperately to terminate
-// execution.
-func (NodeEOF) Eval(*variables.Scope, *IOContainer) ExitStatus { return ExitSuccess }
+func (NodeNoop) Eval(*variables.Scope, *IOContainer) ExitStatus { return ExitSuccess }
+
+// NodeEOF is end of file sentinal node.
+type NodeEOF struct {
+	NodeNoop
+}
 
 type NodeList []Node
 

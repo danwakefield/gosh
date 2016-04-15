@@ -32,7 +32,7 @@ for f in $(ls -1 *.gosh); do
 	GOLDEN="./golden/${f%.gosh}.golden"
 	if [ ! -e "$GOLDEN" ]; then
 		echo "Missing Golden file: $GOLDEN"
-		[[ CONTINUE_WITH_ERROR -eq 1 ]] || exit 1
+		[[ $CONTINUE_WITH_ERROR -eq 1 ]] || exit 1
 	fi
 	if [ $VERBOSE -eq 0 ]; then
 		echo "Testing $f"
@@ -42,9 +42,8 @@ for f in $(ls -1 *.gosh); do
 		echo "Gosh running '$f' differs from the golden file."
 		echo "Run the below commands to see how"
 		echo "cat $GOLDEN"
-		echo "echo '======='"
-		echo "../gosh ./$f"
-		[[ CONTINUE_WITH_ERROR -eq 1 ]] || exit 1
+		echo "../gosh ./$f 2>/dev/null"
+		[[ $CONTINUE_WITH_ERROR -eq 1 ]] || exit 1
 	fi
 done
 

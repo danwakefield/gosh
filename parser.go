@@ -99,7 +99,7 @@ func (p *Parser) list(nlf NewlineFlag) Node {
 	p.lexer.IgnoreNewlines = true
 	p.lexer.CheckKeyword = true
 	if nlf == AllowEmptyNode && TokenEndsList[p.peekToken()] {
-		return nil
+		return NodeNoop{}
 	}
 	for {
 		n := p.andOr()
