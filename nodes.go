@@ -290,7 +290,8 @@ func (n NodeCaseList) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 
 func (n NodeCaseList) Matches(s string, scp *variables.Scope) bool {
 	for _, p := range n.Patterns {
-		if fnmatch.Match(p.Raw, s, 0) {
+		expandedPat := p.Expand(scp)
+		if fnmatch.Match(expandedPat, s, 0) {
 			return true
 		}
 	}
