@@ -1,4 +1,4 @@
-echo "8 Test cases"
+echo "9 Test cases"
 case a in
 	a) echo "SUCCESS 1"
 	;;
@@ -41,3 +41,7 @@ V=abc
 case abc in
 	$V) echo "SUCCESS 8"
 esac
+
+case a in
+	a) ;;
+esac && echo "SUCCESS 9"
