@@ -1,0 +1,8 @@
+echo "3 test cases"
+echo $(echo "SUCCESS 1")
+echo $(echo $(echo "SUCCESS 2"))
+echo $(
+if true; then
+	echo "SUCCESS 3"
+fi
+)

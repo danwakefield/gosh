@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"os"
 	"strconv"
+	"strings"
 
 	"gopkg.in/logex.v1"
 
@@ -11,6 +14,28 @@ import (
 
 type Substitution interface {
 	Sub(*variables.Scope) string
+}
+
+type SubSubshell struct {
+	N Node
+}
+
+func (s SubSubshell) Sub(scp *variables.Scope) (returnString string) {
+	logex.Debug("Substituting shell")
+	defer func() {
+		logex.Debugf("Returned '%s'", returnString)
+	}()
+
+	if _, isNoop := s.N.(NodeNoop); isNoop {
+		return ""
+	}
+
+	out := &bytes.Buffer{}
+	// Not sure if we need to capture this exit code for the $? var.
+	// Ignore it for now
+	_ = s.N.Eval(scp, &IOContainer{&bytes.Buffer{}, out, os.Stderr})
+
+	return strings.TrimRight(out.String(), "\n")
 }
 
 type VarSubType int
@@ -28,7 +53,7 @@ const (
 	VarSubLength
 
 	// VarSubSubString, VarSubReplace and VarSubReplaceAll
-	// are not used. The parser can currently only handle
+	// are not used. The lexer can currently only handle
 	// Var subs that use a single arg following the operator symbol
 	VarSubSubString
 	VarSubReplace

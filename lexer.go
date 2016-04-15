@@ -33,20 +33,19 @@ type LexItem struct {
 }
 
 type Lexer struct {
-	input         string
-	inputLen      int
-	lineNo        int
-	lastPos       int
-	pos           int
-	backupWidth   int
-	state         StateFn
-	itemChan      chan LexItem
-	buf           bytes.Buffer
-	backslash     bool
-	quoted        bool
-	subs          []Substitution
-	subReturnFunc StateFn
-	lexDepth      int
+	Input         string
+	InputLen      int
+	LineNo        int
+	LastPos       int
+	Pos           int
+	BackupWidth   int
+	State         StateFn
+	ItemChan      chan LexItem
+	Buf           bytes.Buffer
+	Backslash     bool
+	Quoted        bool
+	Subs          []Substitution
+	SubReturnFunc StateFn
 
 	Parser         *Parser
 	IgnoreNewlines bool
@@ -56,46 +55,46 @@ type Lexer struct {
 
 func NewLexer(input string, p *Parser) *Lexer {
 	l := &Lexer{
-		input:          input,
-		inputLen:       len(input),
-		itemChan:       make(chan LexItem),
-		subs:           []Substitution{},
-		lineNo:         1,
+		Input:          input,
+		InputLen:       len(input),
+		ItemChan:       make(chan LexItem),
+		Subs:           []Substitution{},
+		LineNo:         1,
 		IgnoreNewlines: false,
 		CheckAlias:     true,
 		CheckKeyword:   true,
 		Parser:         p,
 	}
-	go l.run(true)
+	go l.run()
 	return l
 }
 
 func (l *Lexer) emit(t Token) {
-	l.itemChan <- LexItem{
+	l.ItemChan <- LexItem{
 		Tok:    t,
-		Pos:    l.lastPos,
-		LineNo: l.lineNo,
-		Val:    l.buf.String(),
-		Quoted: l.quoted,
-		Subs:   l.subs,
+		Pos:    l.LastPos,
+		LineNo: l.LineNo,
+		Val:    l.Buf.String(),
+		Quoted: l.Quoted,
+		Subs:   l.Subs,
 	}
-	l.lastPos = l.pos
-	l.quoted = false
-	l.subs = []Substitution{}
-	l.buf.Reset()
+	l.LastPos = l.Pos
+	l.Quoted = false
+	l.Subs = []Substitution{}
+	l.Buf.Reset()
 }
 
 func (l *Lexer) next() rune {
-	if l.pos >= l.inputLen {
-		l.pos++
+	if l.Pos >= l.InputLen {
+		l.Pos++
 		return EOFRune
 	}
 	var r rune
 	var w int
 	for {
-		r, w = utf8.DecodeRuneInString(l.input[l.pos:])
-		l.pos += w
-		l.backupWidth = w
+		r, w = utf8.DecodeRuneInString(l.Input[l.Pos:])
+		l.Pos += w
+		l.BackupWidth = w
 		if r != '\x01' {
 			break
 		}
@@ -104,8 +103,8 @@ func (l *Lexer) next() rune {
 }
 
 func (l *Lexer) backup() {
-	l.pos -= l.backupWidth
-	l.backupWidth = 0
+	l.Pos -= l.BackupWidth
+	l.BackupWidth = 0
 }
 
 func (l *Lexer) hasNext(r rune) bool {
@@ -116,19 +115,15 @@ func (l *Lexer) hasNext(r rune) bool {
 	return false
 }
 
-func (l *Lexer) run(closeChan bool) {
-	l.lexDepth++
-	defer func() { l.lexDepth-- }()
-	for l.state = lexStart; l.state != nil; {
-		l.state = l.state(l)
+func (l *Lexer) run() {
+	for l.State = lexStart; l.State != nil; {
+		l.State = l.State(l)
 	}
-	if closeChan {
-		close(l.itemChan)
-	}
+	close(l.ItemChan)
 }
 
 func (l *Lexer) ignore() {
-	l.lastPos = l.pos
+	l.LastPos = l.Pos
 }
 
 func (l *Lexer) NextLexItem() (li LexItem) {
@@ -139,11 +134,11 @@ func (l *Lexer) NextLexItem() (li LexItem) {
 
 		logex.Pretty(li, li.Tok.String())
 	}()
-	li = <-l.itemChan
+	li = <-l.ItemChan
 
 	if l.IgnoreNewlines {
 		for li.Tok == TNewLine {
-			li = <-l.itemChan
+			li = <-l.ItemChan
 		}
 	}
 
@@ -190,16 +185,16 @@ func lexStart(l *Lexer) StateFn {
 			}
 		case '\\': // Line Continuation or escaped character
 			if l.hasNext('\n') {
-				l.lineNo++
+				l.LineNo++
 				continue
 			}
 			l.backup()
-			l.backslash = true
-			l.quoted = true
+			l.Backslash = true
+			l.Quoted = true
 			return lexWord
 		case '\n':
 			l.emit(TNewLine)
-			l.lineNo++
+			l.LineNo++
 		case '&':
 			if l.hasNext('&') {
 				l.emit(TAnd)
@@ -222,11 +217,6 @@ func lexStart(l *Lexer) StateFn {
 			l.emit(TLeftParen)
 		case ')':
 			l.emit(TRightParen)
-			// To account for subshell parsing we have to special case
-			// the RightParen as an EOF token.
-			if l.lexDepth > 1 {
-				return nil
-			}
 		}
 	}
 }
@@ -237,19 +227,19 @@ OuterLoop:
 	for {
 		c := l.next()
 
-		if l.backslash {
+		if l.Backslash {
 			if c == EOFRune {
 				l.backup()
-				l.buf.WriteRune('\\')
+				l.Buf.WriteRune('\\')
 				break
 			}
 			if c == '\\' {
-				l.buf.WriteRune('\\')
+				l.Buf.WriteRune('\\')
 				continue
 			}
-			l.buf.WriteRune(SentinalEscape)
-			l.buf.WriteRune(c)
-			l.backslash = false
+			l.Buf.WriteRune(SentinalEscape)
+			l.Buf.WriteRune(c)
+			l.Backslash = false
 			continue
 		}
 
@@ -258,18 +248,18 @@ OuterLoop:
 			l.backup()
 			break OuterLoop
 		case '\'':
-			l.quoted = true
+			l.Quoted = true
 			return lexSingleQuote
 		case '"':
-			l.quoted = true
+			l.Quoted = true
 			return lexDoubleQuote
 		case '`':
 			return lexBackQuote
 		case '$':
-			l.subReturnFunc = lexWord
+			l.SubReturnFunc = lexWord
 			return lexSubstitution
 		default:
-			l.buf.WriteRune(c)
+			l.Buf.WriteRune(c)
 		}
 	}
 
@@ -283,7 +273,7 @@ func lexSubstitution(l *Lexer) StateFn {
 
 	switch {
 	default:
-		l.buf.WriteRune('$')
+		l.Buf.WriteRune('$')
 		l.backup()
 		return lexWord
 	case c == '(':
@@ -304,7 +294,7 @@ func lexVariableSimple(l *Lexer) StateFn {
 	// char for the varname. That means that any character not valid
 	// just terminates the parsing and we dont have to
 	// worry about the case of an empty varname
-	l.buf.WriteRune(SentinalSubstitution)
+	l.Buf.WriteRune(SentinalSubstitution)
 	sv := SubVariable{SubType: VarSubNormal}
 	varbuf := bytes.Buffer{}
 
@@ -335,26 +325,26 @@ func lexVariableSimple(l *Lexer) StateFn {
 	}
 
 	sv.VarName = varbuf.String()
-	l.subs = append(l.subs, sv)
-	return l.subReturnFunc
+	l.Subs = append(l.Subs, sv)
+	return l.SubReturnFunc
 }
 func lexVariableComplex(l *Lexer) StateFn {
 	// Upon entering we have read the opening '{'
-	l.buf.WriteRune(SentinalSubstitution)
+	l.Buf.WriteRune(SentinalSubstitution)
 	sv := SubVariable{}
 	varbuf := bytes.Buffer{}
 
 	defer func() {
 		// We defer this as there are multiple return points
 		sv.VarName = varbuf.String()
-		l.subs = append(l.subs, sv)
+		l.Subs = append(l.Subs, sv)
 	}()
 
 	if l.hasNext('#') {
 		// The NParam Special Var
 		if l.hasNext('}') {
 			varbuf.WriteRune('#')
-			return l.subReturnFunc
+			return l.SubReturnFunc
 		}
 
 		// Length variable operator
@@ -385,16 +375,16 @@ func lexVariableComplex(l *Lexer) StateFn {
 		}
 	case c == EOFRune:
 		l.backup()
-		return l.subReturnFunc
+		return l.SubReturnFunc
 	}
 
 	if l.hasNext('}') {
-		return l.subReturnFunc
+		return l.SubReturnFunc
 	}
 
 	// Length operator should have returned since only ${#varname} is valid
 	if sv.SubType == VarSubLength {
-		logex.Panic(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
+		logex.Panic(fmt.Sprintf("Line %d: Bad substitution (%s)", l.LineNo, l.Input[l.LastPos:l.Pos]))
 	}
 
 	if l.hasNext(':') {
@@ -423,7 +413,7 @@ func lexVariableComplex(l *Lexer) StateFn {
 			sv.SubType = VarSubTrimRight
 		}
 	default:
-		logex.Panic(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
+		logex.Panic(fmt.Sprintf("Line %d: Bad substitution (%s)", l.LineNo, l.Input[l.LastPos:l.Pos]))
 	}
 
 	// Read until '}'
@@ -441,7 +431,7 @@ func lexVariableComplex(l *Lexer) StateFn {
 	}
 	sv.SubVal = subValBuf.String()
 
-	return l.subReturnFunc
+	return l.SubReturnFunc
 
 }
 func lexBackQuote(l *Lexer) StateFn {
@@ -449,25 +439,26 @@ func lexBackQuote(l *Lexer) StateFn {
 	return nil
 }
 func lexSubshell(l *Lexer) StateFn {
-	// XXX: Emit Start Subshell here and move to stateStart.
-	// Print Sentinal Substitution, create a parser with input[pos:],
-	//
-	// Parser then collects emitted nodes until it hits a lone TRightParen
-	// which should end list? Create su
-	logex.Panic("Not Implemented")
-	saveLexerState := *l
-	saveBuf := l.buf.String()
+	l.ignore()
 
-	_ = saveLexerState
-	_ = saveBuf
+	p := NewParser(l.Input[l.Pos:])
+	ss := SubSubshell{}
+	ss.N = p.list(AllowEmptyNode)
 
-	l.state = lexStart
+	// We have to explictitly get the next item to prevent race conditions
+	// in accessing the lexers Pos and LineNo fields.
+	x := p.lexer.NextLexItem()
+	l.Pos += x.Pos
+	l.LineNo += x.LineNo
 
-	return nil
+	l.Buf.WriteRune(SentinalSubstitution)
+	l.Subs = append(l.Subs, ss)
+
+	return l.SubReturnFunc
 }
 func lexArith(l *Lexer) StateFn {
 	// Upon entering this state we have read the '$(('
-	l.buf.WriteRune(SentinalSubstitution)
+	l.Buf.WriteRune(SentinalSubstitution)
 	arithBuf := bytes.Buffer{}
 	sa := SubArith{}
 
@@ -492,8 +483,8 @@ func lexArith(l *Lexer) StateFn {
 	}
 
 	sa.Raw = arithBuf.String()
-	l.subs = append(l.subs, sa)
-	return l.subReturnFunc
+	l.Subs = append(l.Subs, sa)
+	return l.SubReturnFunc
 }
 
 func lexDoubleQuote(l *Lexer) StateFn {
@@ -505,7 +496,7 @@ func lexDoubleQuote(l *Lexer) StateFn {
 		case EOFRune:
 			panic(ErrQuotedString) //TODO: Dont make this panic
 		case '$':
-			l.subReturnFunc = lexDoubleQuote
+			l.SubReturnFunc = lexDoubleQuote
 			return lexSubstitution
 		case '"':
 			return lexWord
@@ -514,13 +505,13 @@ func lexDoubleQuote(l *Lexer) StateFn {
 			switch c {
 			case '\n': // Ignored
 			case '\\', '$', '`', '"':
-				l.buf.WriteRune(c)
+				l.Buf.WriteRune(c)
 			default:
 				l.backup()
-				l.buf.WriteRune('\\')
+				l.Buf.WriteRune('\\')
 			}
 		default:
-			l.buf.WriteRune(c)
+			l.Buf.WriteRune(c)
 		}
 	}
 }
@@ -536,7 +527,7 @@ func lexSingleQuote(l *Lexer) StateFn {
 		case '\'':
 			return lexWord
 		default:
-			l.buf.WriteRune(c)
+			l.Buf.WriteRune(c)
 		}
 	}
 }
