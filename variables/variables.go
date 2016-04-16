@@ -30,6 +30,20 @@ func NewScope() *Scope {
 	return &s
 }
 
+func (s *Scope) Copy() *Scope {
+	newS := Scope{}
+	newS.currentScope = s.currentScope
+	newS.scopes = []VarScope{}
+	for _, vs := range s.scopes {
+		x := VarScope{}
+		for k, v := range vs {
+			x[k] = v
+		}
+		newS.scopes = append(newS.scopes, x)
+	}
+	return &newS
+}
+
 // Push adds a VarScope to the scope stack.
 func (s *Scope) Push() {
 	s.scopes = append(s.scopes, VarScope{})

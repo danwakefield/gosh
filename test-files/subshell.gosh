@@ -1,4 +1,4 @@
-echo "3 test cases"
+echo "4 test cases"
 echo $(echo "SUCCESS 1")
 echo $(echo $(echo "SUCCESS 2"))
 echo $(
@@ -6,3 +6,6 @@ if true; then
 	echo "SUCCESS 3"
 fi
 )
+A="SUCCESS 4"
+true $( A="FAIL 4" )
+echo $A

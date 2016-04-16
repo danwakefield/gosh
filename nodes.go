@@ -320,6 +320,8 @@ type NodePipe struct {
 func (n NodePipe) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 	lastPipeReader, pipeWriter := io.Pipe()
 
+	scp = scp.Copy()
+
 	cmd := n.Commands[0]
 	go cmd.Eval(scp, &IOContainer{In: &bytes.Buffer{}, Out: pipeWriter, Err: ioc.Err})
 

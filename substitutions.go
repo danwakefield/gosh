@@ -33,7 +33,7 @@ func (s SubSubshell) Sub(scp *variables.Scope) (returnString string) {
 	out := &bytes.Buffer{}
 	// Not sure if we need to capture this exit code for the $? var.
 	// Ignore it for now
-	_ = s.N.Eval(scp, &IOContainer{&bytes.Buffer{}, out, os.Stderr})
+	_ = s.N.Eval(scp.Copy(), &IOContainer{&bytes.Buffer{}, out, os.Stderr})
 
 	return strings.TrimRight(out.String(), "\n")
 }
