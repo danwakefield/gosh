@@ -279,8 +279,7 @@ func parseIf(p *Parser) Node {
 	ifHead := &n
 
 	p.lexer.IgnoreNewlines = true
-	ifCondition := p.list(IgnoreNewlines)
-	n.Condition = &ifCondition
+	n.Condition = p.list(IgnoreNewlines)
 	p.expect(TThen)
 	n.Body = p.list(IgnoreNewlines)
 
@@ -291,8 +290,7 @@ func parseIf(p *Parser) Node {
 		nelif := NodeIf{}
 
 		p.lexer.IgnoreNewlines = true
-		ifCondition = p.list(IgnoreNewlines)
-		nelif.Condition = &ifCondition
+		nelif.Condition = p.list(IgnoreNewlines)
 		p.expect(TThen)
 		nelif.Body = p.list(IgnoreNewlines)
 
@@ -302,6 +300,7 @@ func parseIf(p *Parser) Node {
 
 	if p.hasNextToken(TElse) {
 		nelse := NodeIf{}
+		nelse.Condition = NodeNoop{}
 		nelse.Body = p.list(IgnoreNewlines)
 		n.Else = &nelse
 	}

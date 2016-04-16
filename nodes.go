@@ -191,18 +191,15 @@ func (n NodeFor) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 // indicate the end of the if chain.
 // as an 'else' Condition is required to be nil.
 type NodeIf struct {
-	Condition *Node
+	Condition Node
 	Else      *NodeIf
 	Body      Node
 }
 
 func (n NodeIf) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 	logex.Debug("Entered if")
-	if n.Condition == nil {
-		return n.Body.Eval(scp, ioc)
-	}
 
-	runBody := (*n.Condition).Eval(scp, ioc)
+	runBody := n.Condition.Eval(scp, ioc)
 	if runBody == ExitSuccess {
 		return n.Body.Eval(scp, ioc)
 	}
