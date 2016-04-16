@@ -236,7 +236,7 @@ func (p *Parser) command() Node {
 }
 
 // simpleCommand
-func (p *Parser) simpleCommand() NodeCommand {
+func (p *Parser) simpleCommand() Node {
 	logex.Debugf("Enter\n")
 	tok := p.next()
 	assignments := []string{}
