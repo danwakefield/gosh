@@ -312,7 +312,6 @@ func parseIf(p *Parser) Node {
 func parseCase(p *Parser) Node {
 	n := NodeCase{Cases: []NodeCaseList{}}
 
-	// case <expr> in
 	tok := p.next()
 	if tok.Tok != TWord {
 		logex.Panic("Expected an expression after case")
@@ -342,8 +341,12 @@ func parseCase(p *Parser) Node {
 
 		ncl := NodeCaseList{Patterns: []Arg{}}
 		for {
-			// We always have one pattern so keep appending while the
+			// We should always have one pattern so keep appending while the
 			// next character is the pattern seperator TPipe
+			if tok.Tok != TWord {
+				p.backup()
+				break
+			}
 			ncl.Patterns = append(ncl.Patterns, Arg{Raw: tok.Val, Subs: tok.Subs})
 			if !p.hasNextToken(TPipe) {
 				break

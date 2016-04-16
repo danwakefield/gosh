@@ -197,8 +197,6 @@ type NodeIf struct {
 }
 
 func (n NodeIf) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
-	logex.Debug("Entered if")
-
 	runBody := n.Condition.Eval(scp, ioc)
 	if runBody == ExitSuccess {
 		return n.Body.Eval(scp, ioc)
@@ -260,19 +258,11 @@ func (n NodeCommand) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 		}()
 	}
 
-	logex.Info("========ENV======")
-	logex.Pretty(env)
-	logex.Info("========CMD======")
-	logex.Pretty(cmd)
-	logex.Info("========EXEC======")
 	err := cmd.Run()
-	logex.Info("=======EXIT======")
 	if err == nil {
-		logex.Info("> Success")
 		return ExitSuccess
 	}
 	logex.Error(err)
-	logex.Info("> Failure")
 	return ExitFailure
 	// ===== THIS NEEDS TO BE EXTRACTED ====
 }
