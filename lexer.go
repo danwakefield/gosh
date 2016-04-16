@@ -449,21 +449,22 @@ func lexBackQuote(l *Lexer) StateFn {
 	return nil
 }
 func lexSubshell(l *Lexer) StateFn {
-	// XXX: Emit Start Subshell here and move to stateStart.
-	// Print Sentinal Substitution, create a parser with input[pos:],
-	//
-	// Parser then collects emitted nodes until it hits a lone TRightParen
-	// which should end list? Create su
-	logex.Panic("Not Implemented")
-	saveLexerState := *l
-	saveBuf := l.buf.String()
+	l.ignore()
 
-	_ = saveLexerState
-	_ = saveBuf
+	p := NewParser(l.input[l.pos:])
+	ss := SubSubshell{}
+	ss.N = p.list(AllowEmptyNode)
 
-	l.state = lexStart
+	// We have to explictitly get the next item to prevent race conditions
+	// in accessing the lexers Pos and LineNo fields.
+	x := p.lexer.NextLexItem()
+	l.pos += x.Pos
+	l.lineNo += x.LineNo
 
-	return nil
+	l.buf.WriteRune(SentinalSubstitution)
+	l.subs = append(l.subs, ss)
+
+	return l.subReturnFunc
 }
 func lexArith(l *Lexer) StateFn {
 	// Upon entering this state we have read the '$(('
