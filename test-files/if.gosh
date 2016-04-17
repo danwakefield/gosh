@@ -1,0 +1,45 @@
+echo "6 test cases"
+noop=true
+if true; then
+    echo "SUCCESS 1"
+fi
+
+A="FAIL 2"
+if true; then
+    if true; then
+        A="SUCCESS 2"
+    fi
+fi
+echo $A
+
+A="SUCCESS 3"
+if false; then
+    A="FAIL 3"
+fi
+echo $A
+
+A="FAIL 4"
+if true
+then
+A="SUCCESS 4"
+fi
+echo $A
+
+A="FAIL 5"
+if false; then
+    $noop
+elif true; then
+    A="SUCCESS 5"
+fi
+echo $A
+
+A="FAIL 6"
+if false; then
+    $noop
+elif false; then
+    $noop
+else
+    A="SUCCESS 6"
+fi
+echo $A
+

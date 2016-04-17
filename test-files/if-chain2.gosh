@@ -1,7 +1,0 @@
-if false; then
-	echo 'FAIL'
-elif false; then
-	echo 'FAIL'
-else
-	echo 'SUCCESS'
-fi
