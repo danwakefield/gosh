@@ -68,27 +68,20 @@ func (a Arg) expandSubstitutions(scp *variables.Scope, s string) string {
 	if !strings.ContainsRune(s, SentinalSubstitution) {
 		return s
 	}
-	// Split the Raw string into a []string. Each element would have been
-	// immediately followed by a substitution.
-	fields := strings.FieldsFunc(s, func(r rune) bool {
-		return r == SentinalSubstitution
-	})
 
-	x := make([]string, len(a.Subs)+len(fields))
-	if len(fields) == 0 {
-		// If fields contains nothing after being split the string consists
-		// of only consecutive substitutions
-		for _, s := range a.Subs {
-			x = append(x, s.Sub(scp))
+	buf := bytes.Buffer{}
+	subCounter := 0
+
+	for _, r := range a.Raw {
+		if r == SentinalSubstitution {
+			buf.WriteString(a.Subs[subCounter].Sub(scp))
+			subCounter++
+			continue
 		}
-	} else {
-		for i, f := range fields {
-			x = append(x, f)
-			x = append(x, a.Subs[i].Sub(scp))
-		}
+		buf.WriteRune(r)
 	}
 
-	return strings.Join(x, "")
+	return buf.String()
 }
 
 func (a Arg) expandTilde(scp *variables.Scope, s string) string {
@@ -395,7 +388,7 @@ func (n NodeFunction) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatu
 }
 
 func (n NodeFunction) EvalFunc(scp *variables.Scope, ioc *T.IOContainer, args []string) T.ExitStatus {
-	scp.Push()
+	scp.PushFunction(args)
 	defer scp.Pop()
 	return n.Body.Eval(scp, ioc)
 }

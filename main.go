@@ -19,6 +19,7 @@ func main() {
 	fileContents, _ := ioutil.ReadFile(os.Args[1]) // Ignore error
 	p := NewParser(string(fileContents))
 	scp := variables.NewScope()
+	scp.SetPositionalArgs(os.Args[1:])
 	ex := T.ExitSuccess
 
 	stdIO := &T.IOContainer{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}

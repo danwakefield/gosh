@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -71,6 +72,18 @@ func (s *Scope) Copy() *Scope {
 func (s *Scope) Push() {
 	s.scopes = append(s.scopes, VarScope{})
 	s.currentScope++
+}
+
+func (s *Scope) PushFunction(args []string) {
+	s.Push()
+	s.SetPositionalArgs(args)
+}
+
+func (s *Scope) SetPositionalArgs(args []string) {
+	s.Set("#", strconv.Itoa(len(args)), LocalScope)
+	for i, a := range args {
+		s.Set(strconv.Itoa(i+1), a, LocalScope)
+	}
 }
 
 // Pop removes the top VarScope from the scopes stack.
