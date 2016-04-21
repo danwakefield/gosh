@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/logex.v1"
 
+	"github.com/danwakefield/gosh/T"
 	"github.com/danwakefield/gosh/variables"
 )
 
@@ -239,7 +241,7 @@ func (p *Parser) command() Node {
 func (p *Parser) simpleCommand() Node {
 	logex.Debugf("Enter\n")
 	tok := p.next()
-	assignments := []string{}
+	assignments := map[string]Arg{}
 	args := []Arg{}
 	startLine := tok.LineNo
 	assignmentAllowed := true
@@ -253,7 +255,8 @@ OuterLoop:
 		switch tok.Tok {
 		case TWord:
 			if assignmentAllowed && variables.IsAssignment(tok.Val) {
-				assignments = append(assignments, tok.Val)
+				parts := strings.SplitN(tok.Val, "=", 2)
+				assignments[parts[0]] = Arg{Raw: parts[1], Subs: tok.Subs, Quoted: tok.Quoted}
 				p.lexer.CheckAlias = false
 			} else {
 				assignmentAllowed = false
@@ -370,7 +373,7 @@ func parseCase(p *Parser) Node {
 			continue
 		} else {
 			ExitShellWithMessage(
-				ExitFailure,
+				T.ExitFailure,
 				fmt.Sprintf("Expected ';;' or 'esac' on line %d", tok.LineNo),
 			)
 		}

@@ -1,0 +1,23 @@
+echo "3 test cases"
+A=$(pwd)
+if [ $A = $PWD ]; then
+    echo "SUCCESS 1"
+else
+    echo "FAIL 1"
+fi
+
+cd /
+A=$(pwd)
+if [ $A = $PWD ]; then
+    echo "SUCCESS 2"
+else
+    echo "FAIL 2"
+fi
+
+cd
+A=$(pwd)
+if [ $A = $PWD ]; then
+    echo "SUCCESS 3"
+else
+    echo "FAIL 3"
+fi

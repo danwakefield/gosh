@@ -2,6 +2,8 @@ package variables
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -20,12 +22,32 @@ type VarScope map[string]Variable
 type Scope struct {
 	scopes       []VarScope
 	currentScope int
+	Functions    map[string]bool
+	Pwd          string
+	OldPwd       string
+}
+
+func (s *Scope) SetPwd(dir string) error {
+	dir, err := filepath.Abs(filepath.Clean(dir))
+	if err != nil {
+		return err
+	}
+	p := s.Pwd
+	if err := os.Chdir(dir); err != nil {
+		return err
+	}
+	s.OldPwd = p
+	s.Set("OLDPWD", s.OldPwd)
+	s.Pwd = dir
+	s.Set("PWD", s.Pwd)
+	return nil
 }
 
 func NewScope() *Scope {
 	s := Scope{}
 	s.scopes = []VarScope{}
 	s.scopes = append(s.scopes, VarScope{})
+	s.SetPwd(".")
 
 	return &s
 }

@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/logex.v1"
 
+	"github.com/danwakefield/gosh/T"
 	"github.com/danwakefield/gosh/variables"
 )
 
@@ -18,9 +19,9 @@ func main() {
 	fileContents, _ := ioutil.ReadFile(os.Args[1]) // Ignore error
 	p := NewParser(string(fileContents))
 	scp := variables.NewScope()
-	ex := ExitSuccess
+	ex := T.ExitSuccess
 
-	stdIO := &IOContainer{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
+	stdIO := &T.IOContainer{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
 	for {
 		n := p.Parse()

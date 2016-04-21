@@ -8,6 +8,7 @@ import (
 
 	"gopkg.in/logex.v1"
 
+	"github.com/danwakefield/gosh/T"
 	"github.com/danwakefield/gosh/arith"
 	"github.com/danwakefield/gosh/variables"
 )
@@ -33,7 +34,7 @@ func (s SubSubshell) Sub(scp *variables.Scope) (returnString string) {
 	out := &bytes.Buffer{}
 	// Not sure if we need to capture this exit code for the $? var.
 	// Ignore it for now
-	_ = s.N.Eval(scp.Copy(), &IOContainer{&bytes.Buffer{}, out, os.Stderr})
+	_ = s.N.Eval(scp.Copy(), &T.IOContainer{&bytes.Buffer{}, out, os.Stderr})
 
 	return strings.TrimRight(out.String(), "\n")
 }
@@ -113,11 +114,11 @@ func (s SubVariable) Sub(scp *variables.Scope) (returnString string) {
 			return v.Val
 		}
 		if s.SubVal != "" {
-			ExitShellWithMessage(ExitFailure, s.SubVal)
+			ExitShellWithMessage(T.ExitFailure, s.SubVal)
 		}
-		ExitShellWithMessage(ExitFailure, s.VarName+": Parameter not set")
+		ExitShellWithMessage(T.ExitFailure, s.VarName+": Parameter not set")
 	case VarSubTrimRight, VarSubTrimRightMax, VarSubTrimLeft, VarSubTrimLeftMax:
-		ExitShellWithMessage(ExitFailure, "Trim operations not implemented")
+		ExitShellWithMessage(T.ExitFailure, "Trim operations not implemented")
 	}
 
 	logex.Panic("Not Reached")

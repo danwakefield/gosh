@@ -4,22 +4,15 @@ import (
 	"bytes"
 	"io"
 	"os/exec"
+	"os/user"
 	"strings"
 
 	"gopkg.in/logex.v1"
 
 	"github.com/danwakefield/fnmatch"
+	"github.com/danwakefield/gosh/T"
+	"github.com/danwakefield/gosh/builtins"
 	"github.com/danwakefield/gosh/variables"
-)
-
-// ExitStatus TODO
-type ExitStatus int
-
-const (
-	ExitSuccess        ExitStatus = 0
-	ExitFailure        ExitStatus = 1
-	ExitNotExecutable  ExitStatus = 126
-	ExitUnknownCommand ExitStatus = 127
 )
 
 type Arg struct {
@@ -28,23 +21,57 @@ type Arg struct {
 	Subs   []Substitution
 }
 
-func (a Arg) Expand(scp *variables.Scope) (returnString string) {
+type ExpandFlag int
+
+const (
+	NoExpandSubstitutions ExpandFlag = iota
+	NoExpandTilde
+	NoExpandWordSplit
+	NoExpandGlob
+)
+
+func (a Arg) Expand(scp *variables.Scope, flags ...ExpandFlag) (returnString string) {
+	flagSet := func(e ExpandFlag) bool {
+		for _, v := range flags {
+			if v == e {
+				return true
+			}
+		}
+		return false
+	}
+
 	logex.Debugf("Expand '%s'", a.Raw)
 	defer func() {
 		logex.Debugf("Returned '%s'", returnString)
 	}()
 
-	if !strings.ContainsRune(a.Raw, SentinalSubstitution) {
-		return a.Raw
+	expString := a.Raw
+
+	if !flagSet(NoExpandTilde) {
+		expString = a.expandTilde(scp, expString)
 	}
 
+	if !flagSet(NoExpandSubstitutions) {
+		expString = a.expandSubstitutions(scp, expString)
+	}
+
+	// XXX: Do FNmatch pathname expansion here.
+	// see `man 7 glob` for details. Key point is that is the expansion
+	// has no files it should be returned as is.
+	return expString
+}
+
+func (a Arg) expandSubstitutions(scp *variables.Scope, s string) string {
+	if !strings.ContainsRune(s, SentinalSubstitution) {
+		return s
+	}
 	// Split the Raw string into a []string. Each element would have been
 	// immediately followed by a substitution.
-	fields := strings.FieldsFunc(a.Raw, func(r rune) bool {
+	fields := strings.FieldsFunc(s, func(r rune) bool {
 		return r == SentinalSubstitution
 	})
 
-	x := make([]string, len(a.Subs))
+	x := make([]string, len(a.Subs)+len(fields))
 	if len(fields) == 0 {
 		// If fields contains nothing after being split the string consists
 		// of only consecutive substitutions
@@ -58,25 +85,28 @@ func (a Arg) Expand(scp *variables.Scope) (returnString string) {
 		}
 	}
 
-	// XXX: Do FNmatch pathname expansion here.
-	// see `man 7 glob` for details. Key point is that is the expansion
-	// has no files it should be returned as is.
 	return strings.Join(x, "")
 }
 
-type IOContainer struct {
-	In  io.Reader
-	Out io.Writer
-	Err io.Writer
+func (a Arg) expandTilde(scp *variables.Scope, s string) string {
+	if strings.HasPrefix(s, "~") {
+		u, err := user.Current()
+		if err != nil {
+			return s
+		}
+		return u.HomeDir + s[1:]
+	} else {
+		return s
+	}
 }
 
 type Node interface {
-	Eval(*variables.Scope, *IOContainer) ExitStatus
+	Eval(*variables.Scope, *T.IOContainer) T.ExitStatus
 }
 
 type NodeNoop struct{}
 
-func (NodeNoop) Eval(*variables.Scope, *IOContainer) ExitStatus { return ExitSuccess }
+func (NodeNoop) Eval(*variables.Scope, *T.IOContainer) T.ExitStatus { return T.ExitSuccess }
 
 // NodeEOF is end of file sentinal node.
 type NodeEOF struct {
@@ -86,9 +116,9 @@ type NodeEOF struct {
 type NodeList []Node
 
 // Eval calls Eval on the Nodes contained in the list and returns the
-// ExitStatus of the last command.
-func (n NodeList) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
-	returnExit := ExitSuccess
+// T.ExitStatus of the last command.
+func (n NodeList) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
+	returnExit := T.ExitSuccess
 
 	for _, x := range n {
 		returnExit = x.Eval(scp, ioc)
@@ -103,14 +133,14 @@ type NodeBinary struct {
 	IsAnd       bool
 }
 
-func (n NodeBinary) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
+func (n NodeBinary) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
 	var runRight bool
 
 	leftExit := n.Left.Eval(scp, ioc)
 	if n.IsAnd {
-		runRight = leftExit == ExitSuccess
+		runRight = leftExit == T.ExitSuccess
 	} else {
-		runRight = leftExit != ExitSuccess
+		runRight = leftExit != T.ExitSuccess
 	}
 
 	if runRight {
@@ -120,18 +150,18 @@ func (n NodeBinary) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 	return leftExit
 }
 
-// NodeNegate is used to flip the ExitStatus of the contained Node
+// NodeNegate is used to flip the T.ExitStatus of the contained Node
 type NodeNegate struct {
 	N Node
 }
 
-func (n NodeNegate) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
+func (n NodeNegate) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
 	ex := n.N.Eval(scp, ioc)
-	// Any Non-zero ExitStatus is a failure so we only check for success
-	if ex == ExitSuccess {
-		return ExitFailure
+	// Any Non-zero T.ExitStatus is a failure so we only check for success
+	if ex == T.ExitSuccess {
+		return T.ExitFailure
 	}
-	return ExitSuccess
+	return T.ExitSuccess
 }
 
 type NodeLoop struct {
@@ -140,16 +170,16 @@ type NodeLoop struct {
 	Body      Node
 }
 
-func (n NodeLoop) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
+func (n NodeLoop) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
 	var runBody bool
-	returnExit := ExitSuccess
+	returnExit := T.ExitSuccess
 
 	for {
 		condExit := n.Condition.Eval(scp, ioc)
 		if n.IsWhile {
-			runBody = condExit == ExitSuccess
+			runBody = condExit == T.ExitSuccess
 		} else { // Until
-			runBody = condExit != ExitSuccess
+			runBody = condExit != T.ExitSuccess
 		}
 
 		if runBody {
@@ -168,8 +198,8 @@ type NodeFor struct {
 	Body    Node
 }
 
-func (n NodeFor) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
-	returnExit := ExitSuccess
+func (n NodeFor) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
+	returnExit := T.ExitSuccess
 
 	expandedArgs := make([]string, len(n.Args))
 	for i, arg := range n.Args {
@@ -196,9 +226,9 @@ type NodeIf struct {
 	Body      Node
 }
 
-func (n NodeIf) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
+func (n NodeIf) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
 	runBody := n.Condition.Eval(scp, ioc)
-	if runBody == ExitSuccess {
+	if runBody == T.ExitSuccess {
 		return n.Body.Eval(scp, ioc)
 	}
 
@@ -206,49 +236,16 @@ func (n NodeIf) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 		return n.Else.Eval(scp, ioc)
 	}
 
-	return ExitSuccess
+	return T.ExitSuccess
 }
 
 type NodeCommand struct {
-	Assign []string
+	Assign map[string]Arg
 	Args   []Arg
 	LineNo int
 }
 
-func (n NodeCommand) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
-	logex.Pretty(n)
-	// A line with only assignments applies them to the Root Scope
-	// We check this first to avoid unnecessary scope Push/Pop's
-	if len(n.Args) == 0 {
-		for _, assign := range n.Assign {
-			scp.SetString(assign)
-		}
-		return ExitSuccess
-	}
-
-	scp.Push()
-	defer scp.Pop()
-
-	for _, assign := range n.Assign {
-		scp.SetString(assign, variables.LocalScope)
-	}
-
-	expandedArgs := make([]string, len(n.Args))
-	for i, arg := range n.Args {
-		expandedArgs[i] = arg.Expand(scp)
-	}
-
-	/* ===== THIS NEEDS TO BE EXTRACTED ====
-	* This should be the place that we search for builtins,
-	* relative path commands, commands etc.
-	* Will also need to be able to add redirections here somehow. */
-	env := scp.Environ()
-	cmd := exec.Command(expandedArgs[0], expandedArgs[1:]...)
-	cmd.Env = env
-	cmd.Stdin = ioc.In
-	cmd.Stderr = ioc.Err
-	cmd.Stdout = ioc.Out
-
+func (n NodeCommand) execExternal(scp *variables.Scope, ioc *T.IOContainer, args []string) T.ExitStatus {
 	// This is needed so that pipes will terminate
 	if pw, isPipeWriter := ioc.Out.(*io.PipeWriter); isPipeWriter {
 		defer func() {
@@ -258,13 +255,62 @@ func (n NodeCommand) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 		}()
 	}
 
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Env = scp.Environ()
+	cmd.Stdin = ioc.In
+	cmd.Stderr = ioc.Err
+	cmd.Stdout = ioc.Out
+
 	err := cmd.Run()
 	if err == nil {
-		return ExitSuccess
+		return T.ExitSuccess
 	}
-	logex.Error(err)
-	return ExitFailure
-	// ===== THIS NEEDS TO BE EXTRACTED ====
+	return T.ExitFailure
+}
+
+func (n NodeCommand) execFunction(scp *variables.Scope, ioc *T.IOContainer, args []string) T.ExitStatus {
+	return T.ExitSuccess
+}
+
+func (n NodeCommand) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
+	logex.Pretty(n)
+	// A line with only assignments applies them to the Root Scope
+	// We check this first to avoid unnecessary scope Push/Pop's
+	if len(n.Args) == 0 {
+		for k, v := range n.Assign {
+			scp.Set(k, v.Expand(scp))
+		}
+		return T.ExitSuccess
+	}
+
+	scp.Push()
+	defer scp.Pop()
+
+	for k, v := range n.Assign {
+		scp.Set(k, v.Expand(scp), variables.LocalScope)
+	}
+
+	// Minimum of len(n.Args) after expansions, Likely
+	// that it will be more after globbing though
+	expandedArgs := []string{}
+	for _, arg := range n.Args {
+		expandedArgs = append(expandedArgs, arg.Expand(scp))
+	}
+
+	command := expandedArgs[0]
+	if strings.ContainsRune(command, '/') {
+		return n.execExternal(scp, ioc, expandedArgs)
+	}
+
+	if builtinFunc, found := builtins.All[command]; found {
+		return builtinFunc(scp, ioc, expandedArgs)
+	}
+
+	if _, found := scp.Functions[command]; found {
+		return n.execFunction(scp, ioc, expandedArgs)
+	}
+
+	return n.execExternal(scp, ioc, expandedArgs)
 }
 
 type NodeCaseList struct {
@@ -272,7 +318,7 @@ type NodeCaseList struct {
 	Body     Node
 }
 
-func (n NodeCaseList) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
+func (n NodeCaseList) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
 	return n.Body.Eval(scp, ioc)
 }
 
@@ -291,7 +337,7 @@ type NodeCase struct {
 	Cases []NodeCaseList
 }
 
-func (n NodeCase) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
+func (n NodeCase) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
 	expandedExpr := n.Expr.Expand(scp)
 
 	for _, c := range n.Cases {
@@ -299,7 +345,7 @@ func (n NodeCase) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
 			return c.Eval(scp, ioc)
 		}
 	}
-	return ExitSuccess
+	return T.ExitSuccess
 }
 
 type NodePipe struct {
@@ -307,25 +353,25 @@ type NodePipe struct {
 	Commands   NodeList
 }
 
-func (n NodePipe) Eval(scp *variables.Scope, ioc *IOContainer) ExitStatus {
+func (n NodePipe) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
 	lastPipeReader, pipeWriter := io.Pipe()
 
 	scp = scp.Copy()
 
 	cmd := n.Commands[0]
-	go cmd.Eval(scp, &IOContainer{In: &bytes.Buffer{}, Out: pipeWriter, Err: ioc.Err})
+	go cmd.Eval(scp, &T.IOContainer{In: &bytes.Buffer{}, Out: pipeWriter, Err: ioc.Err})
 
 	for _, cmd = range n.Commands[1 : len(n.Commands)-1] {
 		pipeReader, pipeWriter := io.Pipe()
-		go cmd.Eval(scp, &IOContainer{In: lastPipeReader, Out: pipeWriter, Err: ioc.Err})
+		go cmd.Eval(scp, &T.IOContainer{In: lastPipeReader, Out: pipeWriter, Err: ioc.Err})
 		lastPipeReader = pipeReader
 	}
 
 	cmd = n.Commands[len(n.Commands)-1]
 	if !n.Background {
-		return cmd.Eval(scp, &IOContainer{In: lastPipeReader, Out: ioc.Out, Err: ioc.Err})
+		return cmd.Eval(scp, &T.IOContainer{In: lastPipeReader, Out: ioc.Out, Err: ioc.Err})
 	}
 
-	go cmd.Eval(scp, &IOContainer{In: lastPipeReader, Out: ioc.Out, Err: ioc.Err})
-	return ExitSuccess
+	go cmd.Eval(scp, &T.IOContainer{In: lastPipeReader, Out: ioc.Out, Err: ioc.Err})
+	return T.ExitSuccess
 }

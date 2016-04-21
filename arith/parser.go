@@ -68,6 +68,23 @@ type Parser struct {
 	blockAssignments bool
 }
 
+type State struct {
+	lexerPosition int
+	lastNode      ArithNode
+}
+
+func (p *Parser) saveState() State {
+	return State{
+		lexerPosition: p.lexer.pos,
+		lastNode:      p.lastNode,
+	}
+}
+
+func (p *Parser) restoreState(s State) {
+	p.lexer.pos = s.lexerPosition
+	p.lastNode = s.lastNode
+}
+
 func (p *Parser) expression(rbp int) int64 {
 	node := p.lastNode
 	p.next()
@@ -374,33 +391,27 @@ func (n TernaryNode) led(left int64, p *Parser) int64 {
 	n.condition = left
 
 	p.blockAssignments = true
-	// We capture the lexer positions and lastNode before each expression so we can
-	// rewind, get the correct value and return to the end of the ternary
-	pos1 := p.lexer.pos
-	ln1 := p.lastNode
+	// We capture the state before each expression so we can rewind
+	// and only evaluate the branch we need
+	state1 := p.saveState()
 	p.expression(0)
 
 	p.consume(ArithColon)
 
-	pos2 := p.lexer.pos
-	ln2 := p.lastNode
+	state2 := p.saveState()
 	p.expression(0)
-	pos3 := p.lexer.pos
-	ln3 := p.lastNode
+	state3 := p.saveState()
 
 	var returnVal int64
 	p.blockAssignments = false
 	if n.condition != 0 {
-		p.lexer.pos = pos1
-		p.lastNode = ln1
+		p.restoreState(state1)
 		returnVal = p.expression(0)
 	} else {
-		p.lexer.pos = pos2
-		p.lastNode = ln2
+		p.restoreState(state2)
 		returnVal = p.expression(0)
 	}
-	p.lexer.pos = pos3
-	p.lastNode = ln3
+	p.restoreState(state3)
 
 	return returnVal
 }

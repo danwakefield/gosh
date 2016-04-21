@@ -89,8 +89,6 @@ func (l *Lexer) hasNextFunc(fn func(rune) bool) bool {
 // The interface will also contain a value dependant on the Token
 // If Token == ArithNumber then interface will be an int64
 // If Token == ArithVariable then interface will be a string
-//
-// In the future it may be possible that
 // If Token == ArithError then interface will be an error
 func (l *Lexer) Lex() (Token, interface{}) {
 	var t Token
