@@ -13,4 +13,5 @@ var All = map[string]Builtin{
 	":":     TrueCmd,
 	"false": FalseCmd,
 	"cd":    CdCmd,
+	"local": LocalCmd,
 }

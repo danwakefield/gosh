@@ -283,13 +283,6 @@ func (n NodeCommand) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus
 		return T.ExitSuccess
 	}
 
-	scp.Push()
-	defer scp.Pop()
-
-	for k, v := range n.Assign {
-		scp.Set(k, v.Expand(scp), variables.LocalScope)
-	}
-
 	// Minimum of len(n.Args) after expansions, Likely
 	// that it will be more after globbing though
 	expandedArgs := []string{}
@@ -298,19 +291,29 @@ func (n NodeCommand) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus
 	}
 
 	command := expandedArgs[0]
-	if strings.ContainsRune(command, '/') {
+	builtinFunc, builtinFound := builtins.All[command]
+	userFunc, userFuncFound := scp.Functions[command]
+
+	if strings.ContainsRune(command, '/') || (!builtinFound && !userFuncFound) {
+		scp.Push()
+		defer scp.Pop()
+
+		for k, v := range n.Assign {
+			scp.Set(k, v.Expand(scp), variables.LocalScope)
+		}
 		return n.execExternal(scp, ioc, expandedArgs)
 	}
 
-	if builtinFunc, found := builtins.All[command]; found {
-		return builtinFunc(scp, ioc, expandedArgs)
+	if builtinFound {
+		return builtinFunc(scp, ioc, expandedArgs[1:])
 	}
 
-	if _, found := scp.Functions[command]; found {
-		return n.execFunction(scp, ioc, expandedArgs)
+	if userFuncFound {
+		x := userFunc.(NodeFunction)
+		return x.EvalFunc(scp, ioc, expandedArgs[1:])
 	}
 
-	return n.execExternal(scp, ioc, expandedArgs)
+	return T.ExitUnknownCommand
 }
 
 type NodeCaseList struct {
@@ -374,4 +377,20 @@ func (n NodePipe) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
 
 	go cmd.Eval(scp, &T.IOContainer{In: lastPipeReader, Out: ioc.Out, Err: ioc.Err})
 	return T.ExitSuccess
+}
+
+type NodeFunction struct {
+	Body Node
+	Name string
+}
+
+func (n NodeFunction) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
+	scp.Functions[n.Name] = n
+	return T.ExitSuccess
+}
+
+func (n NodeFunction) EvalFunc(scp *variables.Scope, ioc *T.IOContainer, args []string) T.ExitStatus {
+	scp.Push()
+	defer scp.Pop()
+	return n.Body.Eval(scp, ioc)
 }

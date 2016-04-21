@@ -1,0 +1,13 @@
+foofunc() {
+	echo "SUCCESS 1"
+}
+
+A="SUCCESS 2"
+barfunc() {
+	local A
+	A="FAIL 2"
+}
+
+foofunc
+barfunc
+echo $A

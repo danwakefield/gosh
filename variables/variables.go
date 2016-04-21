@@ -22,7 +22,7 @@ type VarScope map[string]Variable
 type Scope struct {
 	scopes       []VarScope
 	currentScope int
-	Functions    map[string]bool
+	Functions    map[string]interface{}
 	Pwd          string
 	OldPwd       string
 }
@@ -48,6 +48,7 @@ func NewScope() *Scope {
 	s.scopes = []VarScope{}
 	s.scopes = append(s.scopes, VarScope{})
 	s.SetPwd(".")
+	s.Functions = map[string]interface{}{}
 
 	return &s
 }
@@ -87,6 +88,7 @@ func (s *Scope) Set(name, val string, opts ...ScopeOption) {
 	if len(opts) > 0 {
 		// We only have Local option ATM forget checking them.
 		s.scopes[s.currentScope][name] = Variable{Val: val, Set: true}
+		return
 	}
 	for i := s.currentScope; i >= 0; i-- {
 		v, found := s.scopes[i][name]

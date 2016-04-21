@@ -240,6 +240,7 @@ func (p *Parser) command() Node {
 // simpleCommand
 func (p *Parser) simpleCommand() Node {
 	logex.Debugf("Enter\n")
+	defer logex.Debugf("Exit\n")
 	tok := p.next()
 	assignments := map[string]Arg{}
 	args := []Arg{}
@@ -262,6 +263,22 @@ OuterLoop:
 				assignmentAllowed = false
 				args = append(args, Arg{Raw: tok.Val, Subs: tok.Subs, Quoted: tok.Quoted})
 			}
+		case TLeftParen:
+			if len(args) == 1 && len(assignments) == 0 {
+				p.expect(TRightParen)
+				name := args[0]
+				if !variables.IsGoodName(name.Raw) {
+					panic("Bad function name: " + name.Raw)
+				}
+				p.lexer.CheckAlias = true
+				p.lexer.IgnoreNewlines = true
+				p.lexer.CheckKeyword = true
+				n := NodeFunction{}
+				n.Body = p.command()
+				n.Name = name.Raw
+				return n
+			}
+			fallthrough
 		default:
 			p.backup()
 			break OuterLoop
@@ -273,7 +290,6 @@ OuterLoop:
 	n.Assign = assignments
 	n.Args = args
 	n.LineNo = startLine
-	logex.Debugf("Exit\n")
 	return n
 }
 
