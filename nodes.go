@@ -55,6 +55,9 @@ func (a Arg) Expand(scp *variables.Scope, flags ...ExpandFlag) (returnString str
 		expString = a.expandSubstitutions(scp, expString)
 	}
 
+	if !flagSet(NoExpandGlob) {
+	}
+
 	// XXX: Do FNmatch pathname expansion here.
 	// see `man 7 glob` for details. Key point is that is the expansion
 	// has no files it should be returned as is.
@@ -89,7 +92,7 @@ func (a Arg) expandSubstitutions(scp *variables.Scope, s string) string {
 }
 
 func (a Arg) expandTilde(scp *variables.Scope, s string) string {
-	if strings.HasPrefix(s, "~") {
+	if strings.HasPrefix(s, "~") && !a.Quoted {
 		u, err := user.Current()
 		if err != nil {
 			return s
@@ -290,6 +293,8 @@ func (n NodeCommand) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus
 		expandedArgs = append(expandedArgs, arg.Expand(scp))
 	}
 
+	// Order of precedence:
+	// Relative command > Builtin > User Function > Other external command
 	command := expandedArgs[0]
 	builtinFunc, builtinFound := builtins.All[command]
 	userFunc, userFuncFound := scp.Functions[command]
