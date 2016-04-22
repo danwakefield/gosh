@@ -15,7 +15,6 @@ Gosh is licensed under MIT.
 
 # TODO
 - [ ] Word splitting
-- [x] tilde expansion
 - [ ] filepath globbing
 - [ ] Redirections - Generic redirections to and from files, fd's, sockets etc.
 - [ ] Background / Async commands - Should be quite easy just run Eval in goroutine and return ExitSuccess
@@ -25,7 +24,8 @@ Gosh is licensed under MIT.
 - [ ] Character escaping in strings
 - [ ] Interactive support - Use the golang readline port and add in prompts where needed
 - [ ] Shell options - I.e set -x, prints line before evaluation. set -e exits on any non-zero status
-- [ ] Switch to a log library (Or right one) that follows [Dave Cheneys blog post](http://dave.cheney.net/2015/11/05/lets-talk-about-logging) ideas.
+- [ ] Switch to a log library (write one?) that follows [Dave Cheneys blog post](http://dave.cheney.net/2015/11/05/lets-talk-about-logging) ideas.
+- [x] tilde expansion
 - [x] Builtin commands - source / . will probably be first
 - [x] Functions - Requires variables.Scope to be updated to be a more generic store I.e not just variables but func / aliases
 - [x] Pipeline Support - Requires changes to eval signature for passing IO redirections

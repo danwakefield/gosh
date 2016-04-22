@@ -8,7 +8,6 @@ import (
 func LocalCmd(scp *variables.Scope, ioc *T.IOContainer, args []string) T.ExitStatus {
 	// Local should also do assignments, split args on equal sign? already
 	// expanded
-	_ = "breakpoint"
 	for _, a := range args {
 		tmp := scp.Get(a)
 		if tmp.Set {
