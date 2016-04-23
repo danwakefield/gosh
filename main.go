@@ -2,6 +2,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -16,7 +17,14 @@ func init() {
 }
 
 func main() {
-	fileContents, _ := ioutil.ReadFile(os.Args[1]) // Ignore error
+	if len(os.Args) < 2 {
+		fmt.Println("Please pass a file to run")
+		os.Exit(1)
+	}
+	fileContents, err := ioutil.ReadFile(os.Args[1]) // Ignore error
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 	p := NewParser(string(fileContents))
 	scp := variables.NewScope()
 	scp.SetPositionalArgs(os.Args[1:])
