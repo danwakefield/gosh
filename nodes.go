@@ -269,7 +269,6 @@ func (n NodeCommand) execFunction(scp *variables.Scope, ioc *T.IOContainer, args
 }
 
 func (n NodeCommand) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus {
-	logex.Pretty(n)
 	// A line with only assignments applies them to the Root Scope
 	// We check this first to avoid unnecessary scope Push/Pop's
 	if len(n.Args) == 0 {

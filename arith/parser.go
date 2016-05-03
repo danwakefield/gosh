@@ -49,7 +49,7 @@ func Parse(input string, scp *variables.Scope) (i int64, err error) {
 			case error:
 				err = ParseError{Err: t}
 			}
-			logex.Error(err)
+			logex.Fatal(err)
 		}
 	}()
 	p := &Parser{
