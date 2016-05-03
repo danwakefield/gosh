@@ -41,7 +41,7 @@ func (p *Parser) expect(expected ...Token) {
 			return
 		}
 	}
-	logex.Panic("Expected any of: ", expected, ": got:", got)
+	logex.Fatal(fmt.Sprintf("Expected any of: %s\nGot: %s\n", expected, got))
 }
 
 func (p *Parser) backup() {
@@ -127,7 +127,7 @@ func (p *Parser) list(nlf NewlineFlag) Node {
 			return nodes
 		default:
 			if nlf == ObserveNewlines {
-				logex.Panic("Unexpected Token:\n", tok)
+				logex.Fatal(fmt.Sprintf("Unexpected Token: %s: %#v\n", tok.Tok, tok))
 			}
 			p.backup()
 			return nodes
@@ -206,8 +206,7 @@ func (p *Parser) command() Node {
 
 	switch tok.Tok {
 	default:
-		logex.Pretty(tok)
-		logex.Fatal("Could not understand ^")
+		logex.Fatal(fmt.Sprintf("command - unexpected token: %s\n%#v\n"), tok.Tok, tok)
 	case TIf:
 		returnNode = parseIf(p)
 	case TWhile, TUntil:
@@ -333,7 +332,7 @@ func parseCase(p *Parser) Node {
 
 	tok := p.next()
 	if tok.Tok != TWord {
-		logex.Panic("Expected an expression after case")
+		logex.Fatal("Expected an expression after case")
 	}
 	n.Expr = Arg{Raw: tok.Val, Subs: tok.Subs, Quoted: tok.Quoted}
 
@@ -401,7 +400,7 @@ func parseCase(p *Parser) Node {
 func parseFor(p *Parser) Node {
 	tok := p.next()
 	if tok.Tok != TWord || tok.Quoted || !variables.IsGoodName(tok.Val) {
-		logex.Panic(fmt.Sprintf("Bad for loop variable name: '%s'", tok.Val))
+		logex.Fatal(fmt.Sprintf("Bad for loop variable name: '%s'", tok.Val))
 	}
 
 	n := NodeFor{Args: []Arg{}}

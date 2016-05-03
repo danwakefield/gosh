@@ -70,7 +70,6 @@ type SubVariable struct {
 
 func (s SubVariable) Sub(scp *variables.Scope) (returnString string) {
 	logex.Debug("Substituting variable")
-	logex.Pretty(s)
 	defer func() {
 		logex.Debugf("Returned '%s'", returnString)
 	}()
@@ -121,7 +120,7 @@ func (s SubVariable) Sub(scp *variables.Scope) (returnString string) {
 		ExitShellWithMessage(T.ExitFailure, "Trim operations not implemented")
 	}
 
-	logex.Panic("Not Reached")
+	logex.Fatal("SubVariable.Sub unreached")
 	return ""
 }
 
@@ -131,7 +130,6 @@ type SubArith struct {
 
 func (s SubArith) Sub(scp *variables.Scope) string {
 	logex.Debug("Subtituting arithmetic")
-	logex.Pretty(s)
 	i, err := arith.Parse(s.Raw, scp)
 	if err != nil {
 		panic(err)

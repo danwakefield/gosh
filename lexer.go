@@ -136,8 +136,6 @@ func (l *Lexer) NextLexItem() (li LexItem) {
 		l.CheckAlias = false
 		l.IgnoreNewlines = false
 		l.CheckKeyword = false
-
-		logex.Pretty(li, li.Tok.String())
 	}()
 	li = <-l.itemChan
 
@@ -394,7 +392,7 @@ func lexVariableComplex(l *Lexer) StateFn {
 
 	// Length operator should have returned since only ${#varname} is valid
 	if sv.SubType == VarSubLength {
-		logex.Panic(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
+		logex.Fatal(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
 	}
 
 	if l.hasNext(':') {
@@ -423,7 +421,7 @@ func lexVariableComplex(l *Lexer) StateFn {
 			sv.SubType = VarSubTrimRight
 		}
 	default:
-		logex.Panic(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
+		logex.Fatal(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
 	}
 
 	// Read until '}'
@@ -445,7 +443,7 @@ func lexVariableComplex(l *Lexer) StateFn {
 
 }
 func lexBackQuote(l *Lexer) StateFn {
-	logex.Panic("Not Implemented")
+	logex.Fatal("lexBackQuote - Not Implemented")
 	return nil
 }
 func lexSubshell(l *Lexer) StateFn {

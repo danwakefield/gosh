@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	logex.DebugLevel = 0
+	logex.DebugLevel = 1
 }
 
 func main() {
@@ -38,7 +38,6 @@ func main() {
 			//Newline
 			continue
 		}
-		logex.Pretty(n)
 		if _, isEOF := n.(NodeEOF); isEOF {
 			os.Exit(int(ex))
 		}
