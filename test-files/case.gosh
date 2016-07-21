@@ -1,4 +1,4 @@
-echo "9 Test cases"
+echo "10 Test cases"
 case a in
 	a) echo "SUCCESS 1"
 	;;
@@ -45,3 +45,7 @@ esac
 case a in
 	a) ;;
 esac && echo "SUCCESS 9"
+
+case a in
+	) ;;
+esac && echo "SUCCESS 10"
