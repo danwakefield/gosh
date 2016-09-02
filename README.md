@@ -27,7 +27,7 @@ Gosh is licensed under MIT.
 - [ ] Character escaping in strings
 - [ ] Interactive support - Use the golang readline port and add in prompts where needed
 - [ ] Shell options - I.e set -x, prints line before evaluation. set -e exits on any non-zero status
-- [ ] Switch to a log library (write one?) that follows [Dave Cheneys blog post](http://dave.cheney.net/2015/11/05/lets-talk-about-logging) ideas.
+- [x] Switch to a log library (write one?) that follows [Dave Cheneys blog post](http://dave.cheney.net/2015/11/05/lets-talk-about-logging) ideas. See https://github.com/danwakefield/kisslog
 - [x] Shebang - Preparse first line of a file. (Done by exec.Command)
 - [x] tilde expansion
 - [x] Builtin commands - source / . will probably be first
