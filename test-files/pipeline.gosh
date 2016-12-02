@@ -1,6 +1,5 @@
 echo "2 test cases"
-echo "Should print 'SUCCESS 1' twice"
-echo "SUXXESS 1" | tr X C | tee -
+echo "SUXXESS 1" | tr X C
 echo "" | true ${A=FAIL 2}
 true ${A=SUCCESS 2} # This only assigns if A does not already have a value
 echo $A

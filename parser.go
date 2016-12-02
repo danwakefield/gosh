@@ -14,7 +14,7 @@ type Parser struct {
 	lexer       *Lexer
 	lastLexItem LexItem
 	pushBack    bool
-	log         kisslog.Logger
+	log         *kisslog.Logger
 }
 
 func NewParser(input string) *Parser {
