@@ -18,11 +18,10 @@ type Parser struct {
 }
 
 func NewParser(input string) *Parser {
-	p := &Parser{}
-	l := NewLexer(input, p)
-	p.lexer = l
-	p.log = kisslog.New("parser")
-	return p
+	return &Parser{
+		lexer: NewLexer(input),
+		log:   kisslog.New("parser"),
+	}
 }
 
 func (p *Parser) next() LexItem {
@@ -30,7 +29,7 @@ func (p *Parser) next() LexItem {
 		p.pushBack = false
 		return p.lastLexItem
 	}
-	p.lastLexItem = p.lexer.NextLexItem()
+	p.lastLexItem = p.lexer.Next()
 
 	return p.lastLexItem
 }
@@ -199,7 +198,7 @@ func (p *Parser) command() Node {
 
 	switch tok.Tok {
 	default:
-		p.log.Info("command - unexpected token: %s: %#v\n", tok.Tok, tok)
+		p.log.Error("command - unexpected token: %s: %#v\n", tok.Tok, tok)
 		os.Exit(1)
 	case TIf:
 		returnNode = parseIf(p)

@@ -3,12 +3,11 @@ package main
 import (
 	"bytes"
 	"errors"
-	"fmt"
+	"os"
 	"unicode/utf8"
 
-	"gopkg.in/logex.v1"
-
 	"github.com/danwakefield/gosh/char"
+	"github.com/danwakefield/kisslog"
 )
 
 const (
@@ -21,8 +20,6 @@ var (
 	ErrQuotedString = errors.New("Unterminated quoted string")
 )
 
-type StateFn func(*Lexer) StateFn
-
 type LexItem struct {
 	Tok    Token
 	Pos    int
@@ -31,70 +28,105 @@ type LexItem struct {
 	Quoted bool
 	Subs   []Substitution `json:",omitempty"`
 }
-
 type Lexer struct {
-	input         string
-	inputLen      int
-	lineNo        int
-	lastPos       int
-	pos           int
-	backupWidth   int
-	state         StateFn
-	itemChan      chan LexItem
-	buf           bytes.Buffer
-	backslash     bool
-	quoted        bool
-	subs          []Substitution
-	subReturnFunc StateFn
-	lexDepth      int
+	position     int
+	lastPosition int
+	inputLength  int
+	lineNo       int
+	buffer       bytes.Buffer
+	subs         []Substitution
+	quoted       bool
+	backslash    bool
+	backupWidth  int
+	input        string
+	log          *kisslog.Logger
 
-	Parser         *Parser
 	IgnoreNewlines bool
 	CheckAlias     bool
 	CheckKeyword   bool
 }
 
-func NewLexer(input string, p *Parser) *Lexer {
+func NewLexer(input string) *Lexer {
 	l := &Lexer{
 		input:          input,
-		inputLen:       len(input),
-		itemChan:       make(chan LexItem),
+		inputLength:    len(input),
 		subs:           []Substitution{},
 		lineNo:         1,
+		log:            kisslog.New("Lexer"),
 		IgnoreNewlines: false,
 		CheckAlias:     true,
 		CheckKeyword:   true,
-		Parser:         p,
 	}
-	go l.run(true)
 	return l
 }
+func (l *Lexer) Next() (li LexItem) {
+	defer func() {
+		l.CheckAlias = false
+		l.IgnoreNewlines = false
+		l.CheckKeyword = false
+	}()
 
-func (l *Lexer) emit(t Token) {
-	l.itemChan <- LexItem{
+	li = l.nextLexItem()
+
+	for li.Tok == TNewLine && l.IgnoreNewlines {
+		li = l.nextLexItem()
+	}
+
+	if li.Tok != TWord || li.Quoted {
+		return li
+	}
+
+	// Check if words are keywords. E.g for
+	// CheckKeyword flag disables as `for for in 1 2 3`
+	// is valid
+	if t, found := KeywordLookup[li.Val]; found && l.CheckKeyword {
+		return LexItem{
+			Tok:    t,
+			Pos:    li.Pos,
+			LineNo: li.LineNo,
+			Val:    li.Val,
+		}
+	}
+
+	if l.CheckAlias {
+
+	}
+
+	return li
+}
+
+func (l *Lexer) nextLexItem() LexItem {
+	t := l.Start()
+
+	li := LexItem{
 		Tok:    t,
-		Pos:    l.lastPos,
+		Pos:    l.lastPosition,
 		LineNo: l.lineNo,
-		Val:    l.buf.String(),
+		Val:    l.buffer.String(),
 		Quoted: l.quoted,
 		Subs:   l.subs,
 	}
-	l.lastPos = l.pos
+
+	l.lastPosition = l.position
 	l.quoted = false
 	l.subs = []Substitution{}
-	l.buf.Reset()
+	l.buffer.Reset()
+
+	return li
 }
 
-func (l *Lexer) next() rune {
-	if l.pos >= l.inputLen {
-		l.pos++
+func (l *Lexer) nextChar() rune {
+	if l.position >= l.inputLength {
+		l.position++
 		return EOFRune
 	}
-	var r rune
-	var w int
+	var (
+		r rune
+		w int
+	)
 	for {
-		r, w = utf8.DecodeRuneInString(l.input[l.pos:])
-		l.pos += w
+		r, w = utf8.DecodeRuneInString(l.input[l.position:])
+		l.position += w
 		l.backupWidth = w
 		if r != '\x01' {
 			break
@@ -103,217 +135,218 @@ func (l *Lexer) next() rune {
 	return r
 }
 
+func (l *Lexer) ignore() {
+	l.lastPosition = l.position
+}
+
 func (l *Lexer) backup() {
-	l.pos -= l.backupWidth
+	l.position -= l.backupWidth
 	l.backupWidth = 0
 }
 
 func (l *Lexer) hasNext(r rune) bool {
-	if r == l.next() {
+	if r == l.nextChar() {
 		return true
 	}
 	l.backup()
 	return false
 }
 
-func (l *Lexer) run(closeChan bool) {
-	l.lexDepth++
-	defer func() { l.lexDepth-- }()
-	for l.state = lexStart; l.state != nil; {
-		l.state = l.state(l)
-	}
-	if closeChan {
-		close(l.itemChan)
-	}
-}
-
-func (l *Lexer) ignore() {
-	l.lastPos = l.pos
-}
-
-func (l *Lexer) NextLexItem() (li LexItem) {
-	defer func() {
-		l.CheckAlias = false
-		l.IgnoreNewlines = false
-		l.CheckKeyword = false
-	}()
-	li = <-l.itemChan
-
-	if l.IgnoreNewlines {
-		for li.Tok == TNewLine {
-			li = <-l.itemChan
-		}
-	}
-
-	if li.Tok != TWord || li.Quoted {
-		return li
-	}
-
-	if l.CheckKeyword {
-		t, found := KeywordLookup[li.Val]
-		if found {
-			li = LexItem{Tok: t, Pos: li.Pos, LineNo: li.LineNo, Val: li.Val}
-			return li
-		}
-	}
-
-	if l.CheckAlias {
-		// Expand Alias.
-	}
-
-	return li
-}
-
-func lexStart(l *Lexer) StateFn {
+func (l *Lexer) Start() Token {
 	for {
-		c := l.next()
+		c := l.nextChar()
 
 		switch c {
 		default:
 			l.backup()
-			return lexWord
+			return l.Word()
 		case EOFRune:
-			l.emit(TEOF)
-			return nil
-		case ' ', '\t': // Ignore Whitespace
+			return TEOF
+		case ' ', '\t':
+			// Ignore whitespace
 			l.ignore()
-		case '#': // Consume comments upto EOF or a newline
+		case '#':
+			// Consume comments upto newline / EOF
 			for {
-				c = l.next()
+				c := l.nextChar()
 				if c == '\n' || c == EOFRune {
-					l.ignore()
 					l.backup()
+					l.ignore()
+					// Break and let the main loop figure out NL vs EOF
 					break
 				}
 			}
-		case '\\': // Line Continuation or escaped character
+		case '\\':
+			// Line continuation or escaped character
 			if l.hasNext('\n') {
 				l.lineNo++
 				continue
 			}
-			l.backup()
-			l.backslash = true
 			l.quoted = true
-			return lexWord
+			l.backslash = true
+			return l.Word()
 		case '\n':
-			l.emit(TNewLine)
 			l.lineNo++
+			return TNewLine
 		case '&':
 			if l.hasNext('&') {
-				l.emit(TAnd)
+				return TAnd
 			} else {
-				l.emit(TBackground)
+				return TBackground
 			}
 		case '|':
 			if l.hasNext('|') {
-				l.emit(TOr)
+				return TOr
 			} else {
-				l.emit(TPipe)
+				return TPipe
 			}
 		case ';':
 			if l.hasNext(';') {
-				l.emit(TEndCase)
+				return TEndCase
 			} else {
-				l.emit(TSemicolon)
+				return TSemicolon
 			}
 		case '(':
-			l.emit(TLeftParen)
+			return TLeftParen
 		case ')':
-			l.emit(TRightParen)
-			// To account for subshell parsing we have to special case
-			// the RightParen as an EOF token.
-			if l.lexDepth > 1 {
-				return nil
-			}
+			return TRightParen
 		}
 	}
+
+	return TEOF
 }
 
-func lexWord(l *Lexer) StateFn {
-
+func (l *Lexer) Word() Token {
 OuterLoop:
 	for {
-		c := l.next()
+		c := l.nextChar()
 
 		if l.backslash {
 			if c == EOFRune {
 				l.backup()
-				l.buf.WriteRune('\\')
+				l.buffer.WriteRune('\\')
 				break
 			}
 			if c == '\\' {
-				l.buf.WriteRune('\\')
+				l.buffer.WriteRune('\\')
 				continue
 			}
-			l.buf.WriteRune(SentinalEscape)
-			l.buf.WriteRune(c)
+			l.buffer.WriteRune(SentinalEscape)
+			l.buffer.WriteRune(c)
 			l.backslash = false
 			continue
 		}
 
 		switch c {
 		case '\n', '\t', ' ', '<', '>', '(', ')', ';', '&', '|', EOFRune:
+			// Characters that cause a word break
 			l.backup()
 			break OuterLoop
 		case '\'':
 			l.quoted = true
-			return lexSingleQuote
+			l.SingleQuote()
 		case '"':
 			l.quoted = true
-			return lexDoubleQuote
+			l.DoubleQuote()
 		case '`':
-			return lexBackQuote
+			l.BackQuote()
 		case '$':
-			l.subReturnFunc = lexWord
-			return lexSubstitution
+			l.Substitution()
 		default:
-			l.buf.WriteRune(c)
+			l.buffer.WriteRune(c)
 		}
 	}
 
-	l.emit(TWord)
-	return lexStart
+	return TWord
 }
 
-func lexSubstitution(l *Lexer) StateFn {
+func (l *Lexer) DoubleQuote() {
+	// We have consumed the first quote before entering this state.
+	for {
+		c := l.nextChar()
+
+		switch c {
+		case EOFRune:
+			panic(ErrQuotedString) //TODO: Dont make this panic
+		case '$':
+			l.Substitution()
+		case '"':
+			return
+		case '\\':
+			c = l.nextChar()
+			switch c {
+			case '\n':
+				// Ignore an escaped literal newline
+			case '\\', '$', '`', '"':
+				l.buffer.WriteRune(c)
+			default:
+				l.backup()
+				l.buffer.WriteRune('\\')
+			}
+		default:
+			l.buffer.WriteRune(c)
+		}
+	}
+}
+
+func (l *Lexer) SingleQuote() {
+	// We have consumed the first quote before entering this state.
+	for {
+		c := l.nextChar()
+
+		switch c {
+		case EOFRune:
+			panic(ErrQuotedString) //TODO: Dont make this panic
+		case '\'':
+			return
+		default:
+			l.buffer.WriteRune(c)
+		}
+	}
+}
+
+func (l *Lexer) Substitution() {
 	// Upon entering we have only read the '$'
-	c := l.next()
+	// Perform the lex of a single complete substitution before returning
+	// control to the calling location
+	c := l.nextChar()
 
 	switch {
 	default:
-		l.buf.WriteRune('$')
+		l.buffer.WriteRune('$')
 		l.backup()
-		return lexWord
 	case c == '(':
 		if l.hasNext('(') {
-			return lexArith
+			l.Arith()
+		} else {
+			l.Subshell()
 		}
-		return lexSubshell
-	case c == '{':
-		return lexVariableComplex
 	case char.IsFirstInVarName(c), char.IsDigit(c), char.IsSpecial(c):
 		l.backup()
-		return lexVariableSimple
+		l.VariableSimple()
+	case c == '{':
+		l.VariableComplex()
 	}
 }
 
-func lexVariableSimple(l *Lexer) StateFn {
+func (l *Lexer) VariableSimple() {
 	// When we enter this state we know we have at least one readable
 	// char for the varname. That means that any character not valid
 	// just terminates the parsing and we dont have to
 	// worry about the case of an empty varname
-	l.buf.WriteRune(SentinalSubstitution)
+	l.buffer.WriteRune(SentinalSubstitution)
 	sv := SubVariable{SubType: VarSubNormal}
 	varbuf := bytes.Buffer{}
 
-	c := l.next()
+	c := l.nextChar()
 	switch {
 	case char.IsSpecial(c):
 		varbuf.WriteRune(c)
 	case char.IsDigit(c):
+		// Positional argv
 		for {
 			varbuf.WriteRune(c)
-			c = l.next()
+			c = l.nextChar()
 			if !char.IsDigit(c) {
 				l.backup()
 				break
@@ -322,7 +355,7 @@ func lexVariableSimple(l *Lexer) StateFn {
 	case char.IsFirstInVarName(c):
 		for {
 			varbuf.WriteRune(c)
-			c = l.next()
+			c = l.nextChar()
 			if !char.IsInVarName(c) {
 				l.backup()
 				break
@@ -334,11 +367,12 @@ func lexVariableSimple(l *Lexer) StateFn {
 
 	sv.VarName = varbuf.String()
 	l.subs = append(l.subs, sv)
-	return l.subReturnFunc
+	return
 }
-func lexVariableComplex(l *Lexer) StateFn {
+
+func (l *Lexer) VariableComplex() {
 	// Upon entering we have read the opening '{'
-	l.buf.WriteRune(SentinalSubstitution)
+	l.buffer.WriteRune(SentinalSubstitution)
 	sv := SubVariable{}
 	varbuf := bytes.Buffer{}
 
@@ -352,21 +386,21 @@ func lexVariableComplex(l *Lexer) StateFn {
 		// The NParam Special Var
 		if l.hasNext('}') {
 			varbuf.WriteRune('#')
-			return l.subReturnFunc
+			return
 		}
 
 		// Length variable operator
 		sv.SubType = VarSubLength
 	}
 
-	c := l.next()
+	c := l.nextChar()
 	switch {
 	case char.IsSpecial(c):
 		varbuf.WriteRune(c)
 	case char.IsDigit(c):
 		for {
 			varbuf.WriteRune(c)
-			c = l.next()
+			c = l.nextChar()
 			if !char.IsDigit(c) {
 				l.backup()
 				break
@@ -375,7 +409,7 @@ func lexVariableComplex(l *Lexer) StateFn {
 	case char.IsFirstInVarName(c):
 		for {
 			varbuf.WriteRune(c)
-			c = l.next()
+			c = l.nextChar()
 			if !char.IsInVarName(c) {
 				l.backup()
 				break
@@ -383,23 +417,25 @@ func lexVariableComplex(l *Lexer) StateFn {
 		}
 	case c == EOFRune:
 		l.backup()
-		return l.subReturnFunc
+		return
 	}
 
+	// Either a Enclosed variable '${foo}' or a length operation '${#foo}'
 	if l.hasNext('}') {
-		return l.subReturnFunc
+		return
 	}
 
 	// Length operator should have returned since only ${#varname} is valid
 	if sv.SubType == VarSubLength {
-		logex.Fatal(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
+		l.log.Error("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPosition:l.position])
+		os.Exit(1)
 	}
 
 	if l.hasNext(':') {
 		sv.CheckNull = true
 	}
 
-	switch l.next() {
+	switch l.nextChar() {
 	case '-':
 		sv.SubType = VarSubMinus
 	case '+':
@@ -421,58 +457,59 @@ func lexVariableComplex(l *Lexer) StateFn {
 			sv.SubType = VarSubTrimRight
 		}
 	default:
-		logex.Fatal(fmt.Sprintf("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPos:l.pos]))
+		l.log.Error("Line %d: Bad substitution (%s)", l.lineNo, l.input[l.lastPosition:l.position])
+		os.Exit(1)
 	}
 
 	// Read until '}'
 	// In the future to support Nested vars etc create new sublexer from
 	// l.input[l.pos:] and take the first lexitem as the sub val then adjust
 	// this lexer's position and trash sublexer
-	c = l.next()
+	c = l.nextChar()
 	subValBuf := bytes.Buffer{}
 	for {
 		if c == '}' {
 			break
 		}
 		subValBuf.WriteRune(c)
-		c = l.next()
+		c = l.nextChar()
 	}
 	sv.SubVal = subValBuf.String()
-
-	return l.subReturnFunc
-
 }
-func lexBackQuote(l *Lexer) StateFn {
-	logex.Fatal("lexBackQuote - Not Implemented")
-	return nil
+
+func (l *Lexer) BackQuote() {
+	l.log.Error("lexBackQuote - Not Implemented")
+	os.Exit(2)
 }
-func lexSubshell(l *Lexer) StateFn {
+
+func (l *Lexer) Subshell() {
 	l.ignore()
 
-	p := NewParser(l.input[l.pos:])
+	p := NewParser(l.input[l.position:])
 	ss := SubSubshell{}
 	ss.N = p.list(AllowEmptyNode)
 
 	// We have to explictitly get the next item to prevent race conditions
 	// in accessing the lexers Pos and LineNo fields.
-	x := p.lexer.NextLexItem()
-	l.pos += x.Pos
+	x := p.lexer.nextLexItem()
+	l.position += x.Pos
 	l.lineNo += x.LineNo
 
-	l.buf.WriteRune(SentinalSubstitution)
+	l.buffer.WriteRune(SentinalSubstitution)
 	l.subs = append(l.subs, ss)
 
-	return l.subReturnFunc
+	return
 }
-func lexArith(l *Lexer) StateFn {
+
+func (l *Lexer) Arith() {
 	// Upon entering this state we have read the '$(('
-	l.buf.WriteRune(SentinalSubstitution)
+	l.buffer.WriteRune(SentinalSubstitution)
 	arithBuf := bytes.Buffer{}
 	sa := SubArith{}
 
 	parenCount := 0
 	for {
-		c := l.next()
+		c := l.nextChar()
 		if parenCount == 0 && c == ')' {
 			if l.hasNext(')') {
 				break
@@ -492,50 +529,4 @@ func lexArith(l *Lexer) StateFn {
 
 	sa.Raw = arithBuf.String()
 	l.subs = append(l.subs, sa)
-	return l.subReturnFunc
-}
-
-func lexDoubleQuote(l *Lexer) StateFn {
-	// We have consumed the first quote before entering this state.
-	for {
-		c := l.next()
-
-		switch c {
-		case EOFRune:
-			panic(ErrQuotedString) //TODO: Dont make this panic
-		case '$':
-			l.subReturnFunc = lexDoubleQuote
-			return lexSubstitution
-		case '"':
-			return lexWord
-		case '\\':
-			c = l.next()
-			switch c {
-			case '\n': // Ignored
-			case '\\', '$', '`', '"':
-				l.buf.WriteRune(c)
-			default:
-				l.backup()
-				l.buf.WriteRune('\\')
-			}
-		default:
-			l.buf.WriteRune(c)
-		}
-	}
-}
-
-func lexSingleQuote(l *Lexer) StateFn {
-	// We have consumed the first quote before entering this state.
-	for {
-		c := l.next()
-
-		switch c {
-		case EOFRune:
-			panic(ErrQuotedString) //TODO: Dont make this panic
-		case '\'':
-			return lexWord
-		default:
-			l.buf.WriteRune(c)
-		}
-	}
 }

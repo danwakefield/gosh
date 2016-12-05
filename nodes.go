@@ -135,7 +135,7 @@ func (n NodeBinary) Eval(scp *variables.Scope, ioc *T.IOContainer) T.ExitStatus 
 	leftExit := n.Left.Eval(scp, ioc)
 	if n.IsAnd {
 		runRight = leftExit == T.ExitSuccess
-	} else {
+	} else { // OR
 		runRight = leftExit != T.ExitSuccess
 	}
 
