@@ -18,7 +18,7 @@ Gosh is licensed under MIT.
 
 # TODO
 - [ ] Word splitting
-- [ ] filepath globbing
+- [ ] Filepath globbing
 - [ ] Redirections - Generic redirections to and from files, fd's, sockets etc.
 - [ ] Background / Async commands - Should be quite easy just run Eval in goroutine and return ExitSuccess
 - [ ] backquotes
